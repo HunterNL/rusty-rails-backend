@@ -3,6 +3,7 @@ mod cache;
 use std::path::PathBuf;
 
 use clap::{Parser, Subcommand};
+use dotenvy;
 
 #[derive(Parser)]
 struct CliOptions {
@@ -28,6 +29,11 @@ struct AppConfig {
     allow_cache_overwrite: bool,
 }
 fn main() {
+    match dotenvy::from_path("./config/secrets.env") {
+        Ok(_) => {}
+        Err(_) => println!("Expected to find config/secrets.env"),
+    }
+
     let cli_options = CliOptions::parse();
     let ns_key = std::env::var("NS_API_KEY");
     let cache_dir: PathBuf = cli_options.cache_dir.into();
