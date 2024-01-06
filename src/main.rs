@@ -1,9 +1,10 @@
+mod api;
 mod cache;
+mod iff;
 
 use std::path::PathBuf;
 
 use clap::{Parser, Subcommand};
-use dotenvy;
 
 #[derive(Parser)]
 struct CliOptions {
@@ -46,7 +47,7 @@ fn main() {
 
     let res: Result<(), String> = match cli_options.command {
         SubCommand::Fetch => cache::update(config),
-        SubCommand::Serve => todo!(),
+        SubCommand::Serve => api::start(config),
     };
 
     match res {
