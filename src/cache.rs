@@ -7,7 +7,6 @@ use std::{
     time::Duration,
 };
 
-use clap::builder::Str;
 use reqwest::blocking::Client;
 
 use crate::AppConfig;
@@ -27,11 +26,11 @@ struct CacheItem {
     file_path: &'static str,
 }
 
-enum UpdateResult {
-    Ok,
-    Skippped,
-    Error(String),
-}
+// enum UpdateResult {
+//     Ok,
+//     Skippped,
+//     Error(String),
+// }
 
 impl CacheItem {
     fn ensure_present(

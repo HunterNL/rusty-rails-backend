@@ -1,14 +1,12 @@
-use chrono::{NaiveDate, NaiveTime};
+use chrono::NaiveDate;
 use std::fmt::Display;
 use std::{fs::File, io::Read};
-use winnow::ascii::{
-    alphanumeric0, alphanumeric1, dec_uint, line_ending, multispace0, multispace1, space0, space1,
-};
-use winnow::combinator::{alt, delimited, eof, fail, not, opt, preceded, repeat, terminated};
+use winnow::ascii::{alphanumeric1, dec_uint, line_ending, multispace0, space0};
+use winnow::combinator::{alt, delimited, fail, opt, preceded, repeat, terminated};
 use winnow::stream::AsChar;
 use winnow::trace::trace;
 
-use winnow::token::{one_of, take, take_till, take_while};
+use winnow::token::{take, take_till, take_while};
 use winnow::{PResult, Parser};
 
 use super::dayoffset::DayOffset;
@@ -30,15 +28,7 @@ impl Display for InvalidEncodingError {
     }
 }
 
-fn string1<'a>(input: &mut &'a str) -> PResult<&'a str> {
-    take_while(1.., |c: char| c.is_ascii_alphanumeric() || c.is_space()).parse_next(input)
-}
-
-fn spacecomma<'a>(input: &mut &'a str) -> PResult<&'a str> {
-    " ,".parse_next(input)
-}
-
-fn seperator<'a>(input: &'a mut &str) -> PResult<()> {
+fn seperator(input: &mut &str) -> PResult<()> {
     (multispace0, ',').void().parse_next(input)
 }
 
@@ -58,7 +48,7 @@ impl Iff {
         let str_content = std::str::from_utf8(buf.as_slice())
             .map_err(|_| "Timetable file contained invalid utf-8")?;
 
-        parse_IFF.parse(str_content).map_err(|o| o.to_string())
+        parse_iff.parse(str_content).map_err(|o| o.to_string())
     }
 }
 
@@ -71,7 +61,7 @@ pub struct Header {
     pub description: String,
 }
 
-fn parse_IFF<'a>(input: &'a mut &str) -> PResult<Iff> {
+fn parse_iff(input: &mut &str) -> PResult<Iff> {
     (parse_header, repeat(0.., parse_record))
         .parse_next(input)
         .map(|seq| Iff {
@@ -160,7 +150,7 @@ mod test_platform_parse {
     }
 }
 
-fn parse_date<'a>(input: &'a mut &str) -> PResult<NaiveDate> {
+fn parse_date(input: &mut &str) -> PResult<NaiveDate> {
     take(DATE_FORMAT_LEN)
         .try_map(|s| NaiveDate::parse_from_str(s, DATE_FORMAT))
         .parse_next(input)
@@ -179,7 +169,7 @@ mod test_parse_date {
     }
 }
 
-fn parse_time<'a>(input: &'a mut &str) -> PResult<DayOffset> {
+fn parse_time(input: &mut &str) -> PResult<DayOffset> {
     trace("time", take(4u8).try_map(|s: &str| s.parse())).parse_next(input)
 }
 
@@ -227,7 +217,7 @@ pub struct Record {
     pub timetable: Vec<TimetableEntry>,
 }
 
-fn parse_departure<'a>(input: &'a mut &str) -> PResult<TimetableEntry> {
+fn parse_departure(input: &mut &str) -> PResult<TimetableEntry> {
     preceded(
         '>',
         (
@@ -246,7 +236,7 @@ fn parse_departure<'a>(input: &'a mut &str) -> PResult<TimetableEntry> {
     })
 }
 
-fn any_entry<'a>(input: &'a mut &str) -> PResult<TimetableEntry> {
+fn any_entry(input: &mut &str) -> PResult<TimetableEntry> {
     trace(
         "any_entry",
         alt((
@@ -326,7 +316,7 @@ fn parse_arrival(input: &mut &str) -> PResult<TimetableEntry> {
         })
 }
 
-fn parse_record<'a>(input: &'a mut &str) -> PResult<Record> {
+fn parse_record(input: &mut &str) -> PResult<Record> {
     preceded(
         '#',
         (
@@ -350,12 +340,10 @@ fn parse_record<'a>(input: &'a mut &str) -> PResult<Record> {
 #[cfg(test)]
 mod test_record {
 
-    use std::error;
-
     use winnow::Parser;
 
     use crate::iff::{
-        dayoffset::{self, DayOffset},
+        dayoffset::DayOffset,
         parsing::{PlatformInfo, StopKind, TimetableEntry},
     };
 

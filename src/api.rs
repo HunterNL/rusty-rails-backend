@@ -1,7 +1,5 @@
 use std::fs::File;
 
-use clap::builder::Str;
-
 use crate::{iff, AppConfig};
 
 pub(crate) fn start(config: AppConfig) -> Result<(), String> {

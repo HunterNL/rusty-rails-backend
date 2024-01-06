@@ -31,7 +31,7 @@ struct AppConfig {
 }
 fn main() {
     match dotenvy::from_path("./config/secrets.env") {
-        Ok(_) => {}
+        Ok(()) => {}
         Err(_) => println!("Expected to find config/secrets.env"),
     }
 

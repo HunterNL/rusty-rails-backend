@@ -1,4 +1,4 @@
-use std::{error::Error, fmt::Display, num::ParseIntError, str::FromStr};
+use std::{error::Error, fmt::Display, str::FromStr};
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub struct DayOffset {
@@ -50,12 +50,4 @@ impl FromStr for DayOffset {
             offset: hours * 60 + minutes,
         })
     }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_name() {}
 }
