@@ -10,6 +10,10 @@ bytes = "1.5.0"
 chrono = "0.4.31"
 clap = { version = "4.4.11", features = ["derive"] }
 dotenvy = "0.15.7"
+poem = { version = "2.0.0", features = ["static-files"] }
 reqwest = { version ="0.11.23", features = ["blocking"]}
+serde = { version = "1.0.195", features = ["derive"] }
+serde_json = "1.0.111"
+tokio = "1.35.1"
 winnow = { version = "0.5.31"}
 zip = "0.6.6"

@@ -1,24 +1,45 @@
-use std::fs::File;
+use poem::{
+    endpoint::StaticFileEndpoint, get, handler, listener::TcpListener, web::Path, Route, Server,
+};
 
-use crate::{iff, AppConfig};
+mod datarepo;
 
-pub(crate) fn start(config: AppConfig) -> Result<(), String> {
-    let iff_file =
-        File::open(config.cache_dir.join("ns-latest.zip")).expect("To find timetable file");
+use crate::AppConfig;
 
-    let timetable = iff::parsing::Iff::from_file(&iff_file).unwrap();
+#[handler]
+fn hello(Path(name): Path<String>) -> String {
+    format!("hello: {}", name)
+}
 
-    println!("{}", timetable.header.company_id);
-    println!("{}", timetable.header.first_valid_date);
-    println!("{}", timetable.header.last_valid_date);
+pub(crate) fn serve(config: AppConfig) -> Result<(), String> {
+    let data = datarepo::DataRepo::new(&config.cache_dir);
+    Ok(())
+    // start_server(config)
+}
 
-    let a: Vec<String> = timetable
-        .rides
-        .iter()
-        .map(|ride| ride.timetable.first().unwrap().code.clone())
-        .collect();
+#[tokio::main]
+async fn start_server(config: AppConfig) -> Result<(), Box<dyn std::error::Error>> {
+    let stations_endpoint = StaticFileEndpoint::new("data/stations.json");
+    let links_endpoint = StaticFileEndpoint::new("data/links.json");
+    let app = Route::new()
+        .at("/hello/:name", get(hello))
+        .at("/data/stations.json", stations_endpoint)
+        .at("/data/links.json", links_endpoint);
 
-    println!("{}", a.join(","));
+    // let server = Server::new(TcpListener::bind("localhost:3000"));
+    // server.run(app).await?;
+
+    // println!("{}", timetable.header.company_id);
+    // println!("{}", timetable.header.first_valid_date);
+    // println!("{}", timetable.header.last_valid_date);
+
+    // let a: Vec<String> = timetable
+    //     .rides
+    //     .iter()
+    //     .map(|ride| ride.timetable.first().unwrap().code.clone())
+    //     .collect();
+
+    // println!("{}", a.join(","));
 
     Ok(())
 }

@@ -47,7 +47,7 @@ fn main() {
 
     let res: Result<(), String> = match cli_options.command {
         SubCommand::Fetch => cache::update(config),
-        SubCommand::Serve => api::start(config),
+        SubCommand::Serve => api::serve(config).map_err(|e| e.to_string()),
     };
 
     match res {
