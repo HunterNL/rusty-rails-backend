@@ -1,0 +1,13 @@
+{
+	default_bind localhost
+	skip_install_trust
+	local_certs
+	admin off
+}
+
+api.dev.localhost {
+	reverse_proxy localhost:9001
+	log {
+		format console
+	}
+}

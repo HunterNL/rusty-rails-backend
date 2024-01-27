@@ -1,14 +1,44 @@
-use std::{error::Error, fmt::Display, str::FromStr};
+use std::{cmp, error::Error, fmt::Display, str::FromStr};
 
-#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+use chrono::{NaiveTime, Timelike};
+use serde::Serialize;
+
+/// Time as an offset from midnight
+/// Does not keep any date information
+/// Offset might overflow into next day
+/// Precision in minutes
+#[derive(Debug, PartialEq, Eq, Clone, Copy, Serialize)]
+#[serde(transparent)]
 pub struct DayOffset {
     offset: u32,
+}
+
+impl Ord for DayOffset {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.offset.cmp(&other.offset)
+    }
+}
+
+impl PartialOrd for DayOffset {
+    fn partial_cmp(&self, other: &Self) -> Option<cmp::Ordering> {
+        Some(self.cmp(other))
+    }
 }
 
 impl DayOffset {
     pub fn from_hour_minute(hours: u32, minutes: u32) -> Self {
         DayOffset {
             offset: hours * 60 + minutes,
+        }
+    }
+
+    pub fn from_naivetime(time: &NaiveTime) -> Self {
+        Self::from_hour_minute(time.hour(), time.minute())
+    }
+
+    pub fn offset_by(&self, minutes: i32) -> Self {
+        DayOffset {
+            offset: self.offset.saturating_add_signed(minutes),
         }
     }
 }

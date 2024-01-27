@@ -16,6 +16,8 @@ struct CliOptions {
 
     #[arg(short, long)]
     allow_cache_overwrite: bool,
+    // #[arg(long = "ssl")]
+    // use_ssl: bool,
 }
 
 #[derive(Subcommand)]
@@ -23,6 +25,21 @@ enum SubCommand {
     Fetch,
     Serve,
 }
+
+// enum SSLConfig {
+//     None,
+//     Native(Vec<u8>, String),
+// }
+
+// impl SSLConfig {
+//     fn from_option(enable: bool) -> SSLConfig {
+//         if !enable {
+//             return SSLConfig::None;
+//         }
+//         let id = fs::read("./key.p12").expect("key file present");
+//         SSLConfig::Native(id, "".to_owned())
+//     }
+// }
 
 struct AppConfig {
     ns_api_key: Option<String>,

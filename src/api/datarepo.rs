@@ -1,189 +1,103 @@
-use std::{f32::consts::PI, fs::File, io::BufReader};
+use std::{
+    collections::{HashMap, HashSet},
+    fs::File,
+    hash::Hash,
+    iter,
+};
 
-use serde::{Deserialize, Serialize};
+use chrono::NaiveTime;
 mod links;
 mod stations;
-use crate::{api::datarepo::stations::extract_stations, iff};
+use crate::{
+    api::datarepo::{links::extract_links, stations::extract_stations},
+    iff::{
+        self,
+        dayoffset::DayOffset,
+        parsing::{Leg, LegKind, Record},
+    },
+};
 
-#[derive(Deserialize, Serialize, Debug, Clone, Copy, PartialEq)]
-pub struct Coords2D {
-    lon: f32,
-    lat: f32,
-}
-
-impl Coords2D {
-    pub fn new(lon: f32, lat: f32) -> Self {
-        Self { lon, lat }
-    }
-}
-
-#[derive(Debug)]
-pub struct Link {
-    // id: u32,
-    from: String,
-    to: String,
-    path: Path,
-}
-
-// const EARTH_RADIUS: f32 = 12742f32;
-
-// https://stackoverflow.com/a/21623206
-// fn greatCircleDistance(lat1, lon1, lat2, lon2 float64) float64 {
-fn great_circle_distance(coords1: &Coords2D, coords2: &Coords2D) -> f32 {
-    let radius: f32 = 6371f32; // km
-    let p: f32 = std::f32::consts::PI / 180f32;
-
-    let a = 0.5f32 - ((coords2.lat - coords1.lat) * p).cos() / 2f32
-        + (coords1.lat * p).cos()
-            * (coords2.lat * p).cos()
-            * (1f32 - ((coords2.lon - coords1.lon) * p).cos())
-            / 2f32;
-
-    2f32 * radius * a.sqrt().asin()
-
-    // return 2 * r * Math.asin(Math.sqrt(a));
-}
-
-// fn great_circle_distance(coord1: &Coords2D, coord2: &Coords2D) -> f32 {
-//     let p = std::f32::consts::PI / 180f32;
-//     // var p = 0.017453292519943295 // Math.PI / 180
-//     // var c = Math.cos
-//     let a = 0.5f32 - ((coord2.lat - coord1.lat).cos() * p) / 2f32
-//         + (coord1.lat * p).cos()
-//             * (coord2.lat * p).cos()
-//             * (1f32 - ((coord2.lon - coord1.lon) * p).cos())
-//             / 2f32;
-
-//     a.sqrt().asin() * EARTH_RADIUS // 2 * R; R = 6371 km
-// }
-
-fn path_length_m(path: &[Coords2D]) -> f32 {
-    path.windows(2).fold(0f32, |acc, cur| {
-        acc + great_circle_distance(&cur[0], &cur[1])
-    })
-}
-
-fn path_waypoints(path: &[Coords2D]) -> Vec<f32> {
-    path.windows(2)
-        .scan(0f32, |mut state, cur| {
-            let out = Some(*state);
-
-            *state = *state + great_circle_distance(&cur[0], &cur[1]);
-
-            out
-        })
-        .collect()
-
-    // path.windows(2).for_each(|(left,right)| {
-
-    // })
-}
-
-#[derive(Debug)]
-struct Path {
-    pub points: Vec<PathPoint>,
-    len: f32,
-}
-impl Path {
-    fn new_from_coords(coordinates: &[Coords2D]) -> Self {
-        let len = path_length_m(coordinates);
-
-        let mut points: Vec<PathPoint> = coordinates
-            .iter()
-            .map(|p| PathPoint {
-                coordinates: p.clone(),
-                start_offset: 0f32,
-            })
-            .collect();
-
-        let mut dist: f32 = 0f32;
-
-        coordinates
-            .windows(2)
-            .enumerate()
-            .for_each(|(index, coords)| {
-                points.get_mut(index).unwrap().start_offset = dist;
-
-                dist += great_circle_distance(&coords[0], &coords[1]);
-            });
-
-        Path { len, points }
-    }
-
-    pub fn len(&self) -> f32 {
-        self.len
-    }
-}
-
-#[derive(Debug)]
-struct PathPoint {
-    coordinates: Coords2D,
-    start_offset: f32,
-}
-
-impl Link {
-    fn new_from_json_link(json: &JsonLink) -> Self {
-        Link {
-            from: json.properties.from.clone(),
-            to: json.properties.to.clone(),
-            path: Path::new_from_coords(&json.geometry.coordinates),
-        }
-    }
-}
-
-#[derive(Deserialize, Debug)]
-struct Properties {
-    from: String,
-    to: String,
-}
-
-#[derive(Deserialize, Debug)]
-struct JsonLink {
-    geometry: Geometry,
-    properties: Properties,
-}
-
-#[derive(Deserialize, Debug)]
-struct Geometry {
-    coordinates: Vec<Coords2D>,
-}
+use self::{links::Link, stations::Station};
 
 pub struct DataRepo {
     links: Vec<Link>,
     stations: Vec<stations::Station>,
+    rides: Vec<Record>,
+    link_map: HashMap<LinkCode, Link>,
 }
 
-fn extract_links(file: &File) -> Vec<Link> {
-    let reader = BufReader::new(file);
-    let mut json: serde_json::Value = serde_json::from_reader(reader).expect("valid parse");
+#[derive(Eq, Hash, PartialEq)]
+pub struct LinkCode(String, String);
 
-    let mut json = json
-        .as_object_mut()
-        .unwrap()
-        .get_mut("payload")
-        .unwrap()
-        .take();
+trait LinkMap {
+    fn get_undirected(&self, code: &LinkCode) -> Option<(&Link, bool)>;
+    fn contains_undirected(&self, code: &LinkCode) -> bool;
+    fn contains_directed(&self, code: &LinkCode) -> bool;
+}
 
-    let json = json
-        .as_object_mut()
-        .unwrap()
-        .get_mut("features")
-        .unwrap()
-        .take();
+impl LinkMap for HashMap<LinkCode, Link> {
+    fn get_undirected(&self, code: &LinkCode) -> Option<(&Link, bool)> {
+        // let normal = self.get(&make_link_code(a, b));
+        // if normal.is_some() {
+        //     return Some((normal.unwrap(), false));
+        // }
 
-    // println!("{:?}", json);
+        // let inverted = self.get(&make_link_code(b, a));
+        // if inverted.is_some() {
+        //     return Some((inverted.unwrap(), true));
+        // }
 
-    // println!("{}", json.is_array());
-    // println!("{}", json.get(0).unwrap().is_object());
+        // None
 
-    let links: Vec<JsonLink> = serde_json::from_value(json)
-        // .map_err(|e| format!("{} {} {:?}", e.line(), e.column(), e.classify()))
-        .unwrap();
+        todo!()
+    }
 
-    links
-        .into_iter()
-        .map(|l| Link::new_from_json_link(&l))
-        .collect()
+    fn contains_undirected(&self, code: &LinkCode) -> bool {
+        self.contains_key(code) || self.contains_key(&LinkCode(code.1.clone(), code.0.clone()))
+    }
+
+    fn contains_directed(&self, code: &LinkCode) -> bool {
+        self.contains_key(code)
+    }
+}
+
+fn leg_codes(leg: &LegKind) -> Option<Vec<LinkCode>> {
+    match leg {
+        LegKind::Stationary(_) => None,
+        LegKind::Moving(from, to, waypoints) => Some({
+            iter::once(from)
+                .chain(waypoints.iter())
+                .chain(iter::once(to))
+                .collect::<Vec<&String>>()
+                .windows(2)
+                .map(|slice| LinkCode(slice[0].to_string(), slice[1].to_string()))
+                .collect()
+        }),
+    }
+}
+
+fn leg_has_complete_data(
+    leg: &Leg,
+    station_codes: &HashSet<String>,
+    links: &HashMap<LinkCode, Link>,
+) -> bool {
+    match &leg.kind {
+        iff::parsing::LegKind::Stationary(code) => station_codes.contains(code),
+        iff::parsing::LegKind::Moving(from, to, waypoints) => leg_codes(&leg.kind)
+            .iter()
+            .all(|leg_code| leg_code.iter().all(|code| links.contains_undirected(code))),
+    }
+}
+
+fn has_complete_data(
+    record: &Record,
+    station_codes: &HashSet<String>,
+    links: &HashMap<LinkCode, Link>,
+) -> bool {
+    record
+        .generate_legs()
+        .iter()
+        .all(|leg| leg_has_complete_data(leg, station_codes, links))
 }
 
 impl DataRepo {
@@ -193,13 +107,68 @@ impl DataRepo {
         let stations_file =
             File::open(cache_dir.join("stations.json")).expect("To find stations file");
 
-        let timetable = iff::parsing::Iff::from_file(&iff_file).unwrap();
+        let mut timetable = iff::parsing::Iff::from_file(&iff_file).unwrap();
 
-        let links = extract_links(&route_file);
+        let links: Vec<Link> = extract_links(&route_file);
+        let link_map: HashMap<LinkCode, Link> = links
+            .iter()
+            .map(|link| (link.link_code(), link.clone()))
+            .collect();
         let stations = extract_stations(&stations_file);
 
-        println!("{:?}", stations);
+        let station_codes: HashSet<String> = stations.iter().map(|s| s.code.clone()).collect();
 
-        DataRepo { links, stations }
+        println!("Pre: {}", timetable.rides.len());
+
+        // TODO Drop this check and deal with skipping waypoints throughout the app, or deal with translating stations from the iff into coordinates
+        //
+        // This filters out timetable entries that contain stops that we don't have data on, mostly (entirely?) international trains
+        timetable
+            .rides
+            .retain(|ride| has_complete_data(ride, &station_codes, &link_map));
+
+        // let links_map=  HashMap::from_iter(links.iter().map(|link| (make_link_code(link., b))))
+
+        // timetable.rides.retain(|ride| {
+        //     ride.timetable.windows(2).all(|slice| {
+        //         let [left,right] = slice else {panic!("unexpected match failure")};
+
+        //     })
+        // })
+
+        println!("Post: {}", timetable.rides.len());
+
+        // println!("{:?}", stations);
+
+        DataRepo {
+            links,
+            link_map,
+            stations,
+            rides: timetable.rides,
+        }
+    }
+
+    pub fn rides_active_at_time(&self, time: &NaiveTime) -> Vec<Record> {
+        let time = DayOffset::from_naivetime(time);
+
+        println!("{:?}", time);
+        println!("{}", self.rides.len());
+        self.rides
+            .iter()
+            .filter(|r| r.start_time() < time && r.end_time() > time)
+            .cloned()
+            .collect()
+    }
+
+    pub fn links(&self) -> &[Link] {
+        &self.links //[0..1]
+                    // .iter()
+                    // .filter(|link| link.link_code() == LinkCode("ac".to_owned(), "bkl".to_owned()))
+                    // .collect::<Vec<Link>>()
+                    // .as_slice()
+    }
+
+    pub fn stations(&self) -> &[Station] {
+        &self.stations
     }
 }

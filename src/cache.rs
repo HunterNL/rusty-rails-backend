@@ -98,7 +98,7 @@ fn update_ns_data(config: &AppConfig) {
 }
 
 fn update_route_data(config: &AppConfig, ns_api: &NsApi) -> Result<(), String> {
-    let filepath = config.cache_dir.join(ROUTE_FILEPATH);
+    let filepath = config.cache_dir.join("remote").join(ROUTE_FILEPATH);
     if !filepath.exists() || config.allow_cache_overwrite {
         let mut file = File::create(filepath).map_err(|e| format!("Error creating file: {}", e))?;
 
@@ -114,7 +114,7 @@ fn update_route_data(config: &AppConfig, ns_api: &NsApi) -> Result<(), String> {
 }
 
 fn update_station_data(config: &AppConfig, ns_api: &NsApi) -> Result<(), String> {
-    let filepath = config.cache_dir.join(STATION_FILEPATH);
+    let filepath = config.cache_dir.join("remote").join(STATION_FILEPATH);
     if !filepath.exists() || config.allow_cache_overwrite {
         let mut file = File::create(filepath).map_err(|e| format!("Error creating file: {}", e))?;
 
@@ -135,7 +135,11 @@ fn update_timetable(config: &AppConfig) -> Result<(), String> {
         .build()
         .map_err(|e| format!("Error building client: {}", e))?;
 
-    match TIMETABLE_CACHE.ensure_present(client, config.allow_cache_overwrite, &config.cache_dir) {
+    match TIMETABLE_CACHE.ensure_present(
+        client,
+        config.allow_cache_overwrite,
+        &config.cache_dir.join("remote"),
+    ) {
         Ok(_) => println!("Updated timetable"),
         Err(msg) => println!("Error updating timetable: {}", msg),
     };

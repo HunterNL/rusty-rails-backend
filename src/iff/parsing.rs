@@ -1,5 +1,8 @@
 use chrono::NaiveDate;
+use serde::Serialize;
 use std::fmt::Display;
+
+use std::iter;
 use std::{fs::File, io::Read};
 use winnow::ascii::{alphanumeric1, dec_uint, line_ending, multispace0, space0};
 use winnow::combinator::{alt, delimited, fail, opt, preceded, repeat, terminated};
@@ -100,7 +103,7 @@ fn parse_header(input: &mut &str) -> PResult<Header> {
     })
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone, Serialize)]
 pub struct PlatformInfo {
     arrival_platform: Option<String>,
     departure_platform: Option<String>,
@@ -196,13 +199,13 @@ mod header_tests {
     }
 }
 
-#[derive(PartialEq, Debug, Eq)]
+#[derive(PartialEq, Debug, Eq, Clone, Serialize)]
 pub struct TimetableEntry {
     pub code: String,
     pub stop_kind: StopKind,
 }
 
-#[derive(PartialEq, Debug, Eq)]
+#[derive(PartialEq, Debug, Eq, Clone, Serialize)]
 pub enum StopKind {
     Departure(Option<PlatformInfo>, DayOffset),
     Arrival(Option<PlatformInfo>, DayOffset),
@@ -211,10 +214,132 @@ pub enum StopKind {
     StopLong(Option<PlatformInfo>, DayOffset, DayOffset),
 }
 
-#[derive(PartialEq, Debug, Eq)]
+impl StopKind {
+    pub fn departure_time(&self) -> Option<&DayOffset> {
+        match self {
+            StopKind::Departure(_, departure_time) => Some(departure_time),
+            StopKind::Arrival(_, _) => None,
+            StopKind::Waypoint => None,
+            StopKind::StopShort(_, time) => Some(time),
+            StopKind::StopLong(_, _, departure_time) => Some(departure_time),
+        }
+    }
+
+    pub fn arrival_time(&self) -> Option<&DayOffset> {
+        match self {
+            StopKind::Departure(_, _) => None,
+            StopKind::Arrival(_, arrival_time) => Some(arrival_time),
+            StopKind::Waypoint => None,
+            StopKind::StopShort(_, time) => Some(time),
+            StopKind::StopLong(_, arrival_time, _) => Some(arrival_time),
+        }
+    }
+
+    pub fn is_waypoint(&self) -> bool {
+        self == &Self::Waypoint
+    }
+}
+
+#[derive(PartialEq, Debug, Eq, Clone, Serialize)]
 pub struct Record {
     pub id: u64,
     pub timetable: Vec<TimetableEntry>,
+}
+
+#[derive(Serialize)]
+pub enum LegKind {
+    Stationary(String),
+    Moving(String, String, Vec<String>),
+}
+
+impl LegKind {}
+
+#[derive(Serialize)]
+pub struct Leg {
+    start: DayOffset,
+    end: DayOffset,
+    #[serde(flatten)]
+    pub kind: LegKind,
+}
+
+fn leg_for_stop(entry: &TimetableEntry) -> Leg {
+    let (arrival, departure) = match entry.stop_kind {
+        StopKind::Departure(_, scheduled_departure) => {
+            (scheduled_departure.offset_by(-1), scheduled_departure)
+        }
+        StopKind::Arrival(_, scheduled_arrival) => {
+            (scheduled_arrival, scheduled_arrival.offset_by(1))
+        }
+        StopKind::Waypoint => {
+            panic!("Shouldn't happen, waypoint should've been filtered out before")
+        }
+        StopKind::StopShort(_, arrival_departure) => {
+            (arrival_departure, arrival_departure.offset_by(1))
+        }
+        StopKind::StopLong(_, arrival, departure) => (arrival, departure),
+    };
+
+    Leg {
+        start: arrival,
+        end: departure,
+        kind: LegKind::Stationary(entry.code.clone()),
+    }
+}
+
+impl Record {
+    pub fn start_time(&self) -> DayOffset {
+        *self
+            .timetable
+            .first()
+            .unwrap()
+            .stop_kind
+            .departure_time()
+            .unwrap()
+    }
+
+    pub fn end_time(&self) -> DayOffset {
+        *self
+            .timetable
+            .last()
+            .unwrap()
+            .stop_kind
+            .arrival_time()
+            .unwrap()
+    }
+
+    pub(crate) fn generate_legs(&self) -> Vec<Leg> {
+        let mut out = vec![];
+        let mut waypoints = vec![];
+        let first_stop = self.timetable.first().unwrap();
+        let mut previous_stop = first_stop;
+
+        out.push(leg_for_stop(first_stop));
+
+        self.timetable.iter().skip(1).for_each(|entry| {
+            if entry.stop_kind.is_waypoint() {
+                waypoints.push(entry);
+                return;
+            }
+
+            out.push(Leg {
+                start: *previous_stop.stop_kind.departure_time().unwrap(),
+                end: *entry.stop_kind.arrival_time().unwrap(),
+                kind: LegKind::Moving(
+                    previous_stop.code.clone(),
+                    entry.code.clone(),
+                    waypoints.iter().map(|c| c.code.clone()).collect(),
+                ),
+            });
+
+            previous_stop = entry;
+
+            waypoints.clear();
+
+            out.push(leg_for_stop(entry))
+        });
+
+        out
+    }
 }
 
 fn parse_departure(input: &mut &str) -> PResult<TimetableEntry> {
