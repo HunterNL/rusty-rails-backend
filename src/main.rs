@@ -64,13 +64,13 @@ fn main() {
 
     let res: Result<(), String> = match cli_options.command {
         SubCommand::Fetch => cache::update(config),
-        SubCommand::Serve => api::serve(config).map_err(|e| e.to_string()),
+        SubCommand::Serve => api::serve(config),
     };
 
     match res {
-        Ok(_) => std::process::exit(0),
+        Ok(()) => std::process::exit(0),
         Err(msg) => {
-            eprintln!("{}", msg);
+            eprintln!("{msg}");
             std::process::exit(1)
         }
     }

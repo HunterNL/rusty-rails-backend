@@ -36,7 +36,7 @@ trait LinkMap {
 }
 
 impl LinkMap for HashMap<LinkCode, Link> {
-    fn get_undirected(&self, code: &LinkCode) -> Option<(&Link, bool)> {
+    fn get_undirected(&self, _code: &LinkCode) -> Option<(&Link, bool)> {
         // let normal = self.get(&make_link_code(a, b));
         // if normal.is_some() {
         //     return Some((normal.unwrap(), false));
@@ -83,7 +83,7 @@ fn leg_has_complete_data(
 ) -> bool {
     match &leg.kind {
         iff::parsing::LegKind::Stationary(code) => station_codes.contains(code),
-        iff::parsing::LegKind::Moving(from, to, waypoints) => leg_codes(&leg.kind)
+        iff::parsing::LegKind::Moving(_from, _to, _waypoints) => leg_codes(&leg.kind)
             .iter()
             .all(|leg_code| leg_code.iter().all(|code| links.contains_undirected(code))),
     }
@@ -140,7 +140,7 @@ impl DataRepo {
 
         // println!("{:?}", stations);
 
-        DataRepo {
+        Self {
             links,
             link_map,
             stations,
@@ -151,7 +151,7 @@ impl DataRepo {
     pub fn rides_active_at_time(&self, time: &NaiveTime) -> Vec<Record> {
         let time = DayOffset::from_naivetime(time);
 
-        println!("{:?}", time);
+        println!("{time:?}");
         println!("{}", self.rides.len());
         self.rides
             .iter()

@@ -27,7 +27,7 @@ impl PartialOrd for DayOffset {
 
 impl DayOffset {
     pub fn from_hour_minute(hours: u32, minutes: u32) -> Self {
-        DayOffset {
+        Self {
             offset: hours * 60 + minutes,
         }
     }
@@ -37,7 +37,7 @@ impl DayOffset {
     }
 
     pub fn offset_by(&self, minutes: i32) -> Self {
-        DayOffset {
+        Self {
             offset: self.offset.saturating_add_signed(minutes),
         }
     }
@@ -54,8 +54,8 @@ impl Error for ParseError {}
 impl Display for ParseError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            ParseError::StringSizeInvalid => f.write_str("String size invalid, should be 4"),
-            ParseError::SubsliceParseFailed => f.write_str("Subslice failed"),
+            Self::StringSizeInvalid => f.write_str("String size invalid, should be 4"),
+            Self::SubsliceParseFailed => f.write_str("Subslice failed"),
         }
     }
 }
@@ -76,7 +76,7 @@ impl FromStr for DayOffset {
             .parse()
             .map_err(|_| ParseError::SubsliceParseFailed)?;
 
-        Ok(DayOffset {
+        Ok(Self {
             offset: hours * 60 + minutes,
         })
     }

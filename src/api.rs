@@ -40,12 +40,12 @@ impl<'a> Serialize for RideApi<'a> {
 
 #[handler]
 fn hello(Path(name): Path<String>) -> String {
-    format!("hello: {}", name)
+    format!("hello: {name}")
 }
 
-pub(crate) fn serve(config: AppConfig) -> Result<(), String> {
+pub fn serve(config: AppConfig) -> Result<(), String> {
     let data = datarepo::DataRepo::new(&config.cache_dir);
-    prepare_files(&data).map_err(|_| "Error preparing files".to_owned())?;
+    prepare_files(&data).map_err(|()| "Error preparing files".to_owned())?;
 
     // println!("{:?}", data.links());
 
@@ -68,7 +68,7 @@ fn prepare_files(data: &DataRepo) -> Result<(), ()> {
 // }
 
 #[handler]
-fn active_rides_endpoint(data: Data<&Arc<DataRepo>>, req: String) -> Response {
+fn active_rides_endpoint(data: Data<&Arc<DataRepo>>, _req: String) -> Response {
     let timetable_tz = chrono_tz::Europe::Amsterdam;
     let now = chrono::Utc::now().with_timezone(&timetable_tz);
 
@@ -87,7 +87,7 @@ fn active_rides_endpoint(data: Data<&Arc<DataRepo>>, req: String) -> Response {
 }
 
 #[tokio::main]
-async fn start_server(config: AppConfig, data: DataRepo) -> Result<(), Box<dyn std::error::Error>> {
+async fn start_server(_config: AppConfig, data: DataRepo) -> Result<(), Box<dyn std::error::Error>> {
     let d = Arc::new(data);
     let stations_endpoint = StaticFileEndpoint::new("cache/http/stations.json");
     let links_endpoint = StaticFileEndpoint::new("cache/http/links.json");

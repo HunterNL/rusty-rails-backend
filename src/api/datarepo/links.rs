@@ -126,7 +126,7 @@ fn path_waypoints(path: &[Coords2D]) -> Vec<f64> {
         .scan(0f64, |state, cur| {
             let out = Some(*state);
 
-            *state = *state + great_circle_distance(&cur[0], &cur[1]);
+            *state += great_circle_distance(&cur[0], &cur[1]);
 
             out
         })
@@ -145,7 +145,7 @@ struct PathPoint {
 
 impl Link {
     fn new_from_json_link(json: &JsonLink) -> Self {
-        Link {
+        Self {
             from: json.properties.from.clone(),
             to: json.properties.to.clone(),
             path: Path::new_from_coords(&json.geometry.coordinates),
@@ -229,7 +229,7 @@ impl Path {
         //     });
 
         // let total_length = path_length_m(coordinates);
-        Path { len: sum, points }
+        Self { len: sum, points }
     }
 
     pub fn len(&self) -> f64 {

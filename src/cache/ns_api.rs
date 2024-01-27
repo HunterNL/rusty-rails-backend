@@ -16,13 +16,13 @@ impl NsApi {
             .get(String::new() + API_HOST + path)
             .header("Ocp-Apim-Subscription-Key", &self.key)
             .build()
-            .map_err(|e| format!("Error constructing HTTP request: {}", e))?;
+            .map_err(|e| format!("Error constructing HTTP request: {e}"))?;
 
         self.client
             .execute(request)
-            .map_err(|e| format!("Error making HTTP request: {}", e))?
+            .map_err(|e| format!("Error making HTTP request: {e}"))?
             .bytes()
-            .map_err(|e| format!("Error getting bytes: {}", e))
+            .map_err(|e| format!("Error getting bytes: {e}"))
     }
 
     pub fn stations(&self) -> Result<bytes::Bytes, String> {

@@ -2,7 +2,6 @@ use chrono::NaiveDate;
 use serde::Serialize;
 use std::fmt::Display;
 
-use std::iter;
 use std::{fs::File, io::Read};
 use winnow::ascii::{alphanumeric1, dec_uint, line_ending, multispace0, space0};
 use winnow::combinator::{alt, delimited, fail, opt, preceded, repeat, terminated};
@@ -168,7 +167,7 @@ mod test_parse_date {
         let input = "01022023";
         let expected = NaiveDate::from_ymd_opt(2023, 2, 1).expect("Valid date");
 
-        assert_eq!(super::parse_date.parse(input).unwrap(), expected)
+        assert_eq!(super::parse_date.parse(input).unwrap(), expected);
     }
 }
 
@@ -195,7 +194,7 @@ mod header_tests {
                 first_valid_date: NaiveDate::from_ymd_opt(2023, 7, 3).unwrap(),
                 last_valid_date: NaiveDate::from_ymd_opt(2024, 8, 4).unwrap()
             }
-        )
+        );
     }
 }
 
@@ -217,21 +216,21 @@ pub enum StopKind {
 impl StopKind {
     pub fn departure_time(&self) -> Option<&DayOffset> {
         match self {
-            StopKind::Departure(_, departure_time) => Some(departure_time),
-            StopKind::Arrival(_, _) => None,
-            StopKind::Waypoint => None,
-            StopKind::StopShort(_, time) => Some(time),
-            StopKind::StopLong(_, _, departure_time) => Some(departure_time),
+            Self::Departure(_, departure_time) => Some(departure_time),
+            Self::Arrival(_, _) => None,
+            Self::Waypoint => None,
+            Self::StopShort(_, time) => Some(time),
+            Self::StopLong(_, _, departure_time) => Some(departure_time),
         }
     }
 
     pub fn arrival_time(&self) -> Option<&DayOffset> {
         match self {
-            StopKind::Departure(_, _) => None,
-            StopKind::Arrival(_, arrival_time) => Some(arrival_time),
-            StopKind::Waypoint => None,
-            StopKind::StopShort(_, time) => Some(time),
-            StopKind::StopLong(_, arrival_time, _) => Some(arrival_time),
+            Self::Departure(_, _) => None,
+            Self::Arrival(_, arrival_time) => Some(arrival_time),
+            Self::Waypoint => None,
+            Self::StopShort(_, time) => Some(time),
+            Self::StopLong(_, arrival_time, _) => Some(arrival_time),
         }
     }
 
@@ -335,7 +334,7 @@ impl Record {
 
             waypoints.clear();
 
-            out.push(leg_for_stop(entry))
+            out.push(leg_for_stop(entry));
         });
 
         out
@@ -388,7 +387,7 @@ fn parse_waypoint(input: &mut &str) -> PResult<TimetableEntry> {
 fn parse_code(input: &mut &str) -> PResult<String> {
     terminated(alphanumeric1, multispace0)
         .parse_next(input)
-        .map(|str| str.to_owned())
+        .map(std::borrow::ToOwned::to_owned)
 }
 
 fn parse_stop_short(input: &mut &str) -> PResult<TimetableEntry> {
@@ -510,7 +509,7 @@ mod test_record {
         assert_eq!(record.id, 2);
 
         assert_eq!(
-            record.timetable.get(0).unwrap(),
+            record.timetable.first().unwrap(),
             &TimetableEntry {
                 code: "rtd".to_owned(),
                 stop_kind: StopKind::Departure(
@@ -522,7 +521,7 @@ mod test_record {
                     DayOffset::from_hour_minute(18, 50)
                 )
             }
-        )
+        );
     }
 
     #[test]
