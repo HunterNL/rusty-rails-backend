@@ -17,23 +17,29 @@ use crate::{iff::parsing::Record, AppConfig};
 
 use self::datarepo::DataRepo;
 
-struct RideApi<'a> {
-    record: &'a Record,
+pub struct ApiObject<'a, T: ?Sized>(&'a T);
+
+pub trait IntoAPIObject {
+    fn as_api_object(&self) -> ApiObject<'_, Self> {
+        ApiObject(self)
+    }
 }
 
-impl<'a> Serialize for RideApi<'a> {
+impl IntoAPIObject for Record {}
+
+impl<'a> Serialize for ApiObject<'a, Record> {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: serde::Serializer,
     {
         let mut ride = serializer.serialize_struct("ride", 10)?;
-        ride.serialize_field("id", &self.record.id)?;
-        ride.serialize_field("stops", &self.record.timetable)?;
-        ride.serialize_field("startTime", &self.record.start_time())?;
-        ride.serialize_field("endTime", &self.record.end_time())?;
+        ride.serialize_field("id", &self.0.id)?;
+        ride.serialize_field("stops", &self.0.timetable)?;
+        ride.serialize_field("startTime", &self.0.start_time())?;
+        ride.serialize_field("endTime", &self.0.end_time())?;
         ride.serialize_field("distance", &0)?;
         ride.serialize_field("dayValidity", &0)?;
-        ride.serialize_field("legs", &self.record.generate_legs())?;
+        ride.serialize_field("legs", &self.0.generate_legs())?;
         ride.end()
     }
 }
@@ -75,7 +81,7 @@ fn active_rides_endpoint(data: Data<&Arc<DataRepo>>, _req: String) -> Response {
     let data = data.as_ref();
     let rides = data.rides_active_at_time(&now.naive_local().time());
 
-    let v: Vec<RideApi> = rides.iter().map(|r| RideApi { record: r }).collect();
+    let v: Vec<_> = rides.iter().map(|r| r.as_api_object()).collect();
 
     let data = serde_json::to_vec(&v).unwrap();
 
@@ -87,7 +93,10 @@ fn active_rides_endpoint(data: Data<&Arc<DataRepo>>, _req: String) -> Response {
 }
 
 #[tokio::main]
-async fn start_server(_config: AppConfig, data: DataRepo) -> Result<(), Box<dyn std::error::Error>> {
+async fn start_server(
+    _config: AppConfig,
+    data: DataRepo,
+) -> Result<(), Box<dyn std::error::Error>> {
     let d = Arc::new(data);
     let stations_endpoint = StaticFileEndpoint::new("cache/http/stations.json");
     let links_endpoint = StaticFileEndpoint::new("cache/http/links.json");

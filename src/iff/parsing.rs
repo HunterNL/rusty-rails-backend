@@ -129,8 +129,8 @@ fn parse_platform_info(input: &mut &str) -> PResult<PlatformInfo> {
     )
     .parse_next(input)
     .map(|seq| PlatformInfo {
-        arrival_platform: seq.1.map(|s| s.to_owned()),
-        departure_platform: seq.4.map(|s| s.to_owned()),
+        arrival_platform: seq.1.map(std::borrow::ToOwned::to_owned),
+        departure_platform: seq.4.map(std::borrow::ToOwned::to_owned),
         footnote: seq.7,
     })
 }
@@ -217,8 +217,7 @@ impl StopKind {
     pub fn departure_time(&self) -> Option<&DayOffset> {
         match self {
             Self::Departure(_, departure_time) => Some(departure_time),
-            Self::Arrival(_, _) => None,
-            Self::Waypoint => None,
+            Self::Arrival(_, _) | Self::Waypoint => None,
             Self::StopShort(_, time) => Some(time),
             Self::StopLong(_, _, departure_time) => Some(departure_time),
         }
