@@ -5,7 +5,7 @@ use std::{
     iter,
 };
 
-use chrono::NaiveTime;
+use chrono::{NaiveDate, NaiveTime};
 mod links;
 mod stations;
 use crate::{
@@ -24,6 +24,7 @@ pub struct DataRepo {
     stations: Vec<stations::Station>,
     rides: Vec<Record>,
     link_map: HashMap<LinkCode, Link>,
+    validity: iff::parsing::RideValidity,
 }
 
 #[derive(Eq, Hash, PartialEq)]
@@ -107,7 +108,8 @@ impl DataRepo {
         let stations_file =
             File::open(cache_dir.join("stations.json")).expect("To find stations file");
 
-        let mut timetable = iff::parsing::Iff::from_file(&iff_file).unwrap();
+        let mut timetable = iff::parsing::Iff::timetable(&iff_file).unwrap();
+        let validity = iff::parsing::Iff::validity(&iff_file).unwrap();
 
         let links: Vec<Link> = extract_links(&route_file);
         let link_map: HashMap<LinkCode, Link> = links
@@ -118,7 +120,15 @@ impl DataRepo {
 
         let station_codes: HashSet<String> = stations.iter().map(|s| s.code.clone()).collect();
 
+        let duration = timetable
+            .header
+            .last_valid_date
+            .signed_duration_since(timetable.header.first_valid_date);
+
         println!("Pre: {}", timetable.rides.len());
+        println!("Start date: {}", timetable.header.first_valid_date);
+        println!("End date: {}", timetable.header.last_valid_date);
+        println!("Date count: {}", duration.num_days());
 
         // TODO Drop this check and deal with skipping waypoints throughout the app, or deal with translating stations from the iff into coordinates
         //
@@ -145,10 +155,11 @@ impl DataRepo {
             link_map,
             stations,
             rides: timetable.rides,
+            validity,
         }
     }
 
-    pub fn rides_active_at_time(&self, time: &NaiveTime) -> Vec<Record> {
+    pub fn rides_active_at_time(&self, time: &NaiveTime, date: &NaiveDate) -> Vec<Record> {
         let time = DayOffset::from_naivetime(time);
 
         println!("{time:?}");

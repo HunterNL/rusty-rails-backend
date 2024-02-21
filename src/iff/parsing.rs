@@ -1,14 +1,17 @@
 use chrono::NaiveDate;
 use serde::Serialize;
+use std::collections::HashMap;
 use std::fmt::Display;
 
 use std::{fs::File, io::Read};
-use winnow::ascii::{alphanumeric1, dec_uint, line_ending, multispace0, space0};
+use winnow::ascii::{
+    alphanumeric0, alphanumeric1, dec_uint, line_ending, multispace0, newline, space0,
+};
 use winnow::combinator::{alt, delimited, fail, opt, preceded, repeat, terminated};
 use winnow::stream::AsChar;
 use winnow::trace::trace;
 
-use winnow::token::{take, take_till, take_while};
+use winnow::token::{one_of, take, take_till, take_while};
 use winnow::{PResult, Parser};
 
 use super::dayoffset::DayOffset;
@@ -17,9 +20,35 @@ const TIMETABLE_FILE_NAME: &str = "timetbls.dat";
 const DATE_FORMAT_LEN: usize = "DDMMYYYY".len(); // Lenght of dates as they appear in the iff file
 const DATE_FORMAT: &str = "%d%m%Y";
 
-pub struct Iff {
+pub struct Iff {}
+
+pub struct TimeTable {
     pub header: Header,
     pub rides: Vec<Record>,
+}
+
+pub struct RideValidity {
+    header: Header,
+    validities: HashMap<u64, Vec<bool>>,
+}
+
+impl RideValidity {
+    pub fn is_valid_on_day(&self, footnote_id: u64, date: NaiveDate) -> Result<bool, ()> {
+        if date < self.header.first_valid_date || date > self.header.last_valid_date {
+            return Err(()); // Out of validity range
+        }
+
+        let day_id = date
+            .signed_duration_since(self.header.first_valid_date)
+            .num_days() as u64;
+
+        Ok(*self
+            .validities
+            .get(&(day_id))
+            .unwrap()
+            .get(day_id as usize)
+            .unwrap())
+    }
 }
 
 pub struct InvalidEncodingError {}
@@ -34,23 +63,37 @@ fn seperator(input: &mut &str) -> PResult<()> {
     (multispace0, ',').void().parse_next(input)
 }
 
+fn read_file_from_archive(archive: &File, filename: &str) -> Result<String, String> {
+    let mut archive = zip::ZipArchive::new(archive).expect("valid new archive");
+    let mut file = archive
+        .by_name(filename)
+        .map_err(|_| "Error getting file from archive")?;
+
+    let mut buf = vec![];
+
+    file.read_to_end(&mut buf).map_err(|e| e.to_string())?;
+
+    let str_content =
+        std::str::from_utf8(buf.as_slice()).map_err(|_| "file contained invalid utf-8")?;
+
+    Ok(str_content.to_owned())
+}
+
 impl Iff {
-    pub fn from_file(file: &File) -> Result<Self, String> {
-        let mut archive = zip::ZipArchive::new(file).expect("valid new archive");
-        let mut timetable_file = archive
-            .by_name(TIMETABLE_FILE_NAME)
-            .map_err(|_| "Error getting file from archive")?;
+    pub fn timetable(archive: &File) -> Result<TimeTable, String> {
+        let content = read_file_from_archive(archive, TIMETABLE_FILE_NAME)?;
 
-        let mut buf = vec![];
+        parse_timetable_file
+            .parse(&content)
+            .map_err(|o| o.to_string())
+    }
 
-        timetable_file
-            .read_to_end(&mut buf)
-            .map_err(|e| e.to_string())?;
+    pub fn validity(archive: &File) -> Result<RideValidity, String> {
+        let content = read_file_from_archive(archive, "footnote.dat")?;
 
-        let str_content = std::str::from_utf8(buf.as_slice())
-            .map_err(|_| "Timetable file contained invalid utf-8")?;
-
-        parse_iff.parse(str_content).map_err(|o| o.to_string())
+        parse_footnote_file
+            .parse(&content)
+            .map_err(|o| o.to_string())
     }
 }
 
@@ -63,10 +106,41 @@ pub struct Header {
     pub description: String,
 }
 
-fn parse_iff(input: &mut &str) -> PResult<Iff> {
+struct DayValidityFootnote {
+    id: u64,
+    validity: Vec<bool>,
+}
+
+fn parse_single_day(input: &mut &str) -> PResult<bool> {
+    one_of(['0', '1']).map(|char| char == '1').parse_next(input)
+}
+
+fn parse_footnote_record(input: &mut &str) -> PResult<DayValidityFootnote> {
+    ('#', dec_uint, newline, repeat(1.., parse_single_day))
+        .map(|seq| DayValidityFootnote {
+            id: seq.1,
+            validity: seq.3,
+        })
+        .parse_next(input)
+}
+
+fn parse_footnote_file(input: &mut &str) -> PResult<RideValidity> {
+    (parse_header, repeat(0.., parse_footnote_record))
+        .map(|seq: (Header, Vec<DayValidityFootnote>)| RideValidity {
+            header: seq.0,
+            validities: HashMap::from_iter(
+                seq.1
+                    .into_iter()
+                    .map(|footnote| (footnote.id, footnote.validity)),
+            ),
+        })
+        .parse_next(input)
+}
+
+fn parse_timetable_file(input: &mut &str) -> PResult<TimeTable> {
     (parse_header, repeat(0.., parse_record))
         .parse_next(input)
-        .map(|seq| Iff {
+        .map(|seq| TimeTable {
             header: seq.0,
             rides: seq.1,
         })
@@ -242,6 +316,7 @@ impl StopKind {
 pub struct Record {
     pub id: u64,
     pub timetable: Vec<TimetableEntry>,
+    pub ride_id: Vec<RideId>,
 }
 
 #[derive(Serialize)]
@@ -439,35 +514,106 @@ fn parse_arrival(input: &mut &str) -> PResult<TimetableEntry> {
         })
 }
 
+#[derive(PartialEq, Debug, Eq, Clone, Serialize)]
+pub struct RideId {
+    company_id: u32,
+    ride_id: u32,
+    line_id: Option<u32>,
+    first_stop: u32,
+    last_stop: u32,
+    ride_name: Option<String>,
+}
+
+fn empty_str_to_none(a: &str) -> Option<&str> {
+    if a.is_empty() {
+        None
+    } else {
+        Some(a)
+    }
+}
+
+//%100,02871, ,001,004,
+fn parse_ride_id(input: &mut &str) -> PResult<RideId> {
+    (
+        '%',
+        dec_uint,
+        ',',
+        dec_uint,
+        ',',
+        opt(dec_uint),
+        space0,
+        ',',
+        dec_uint,
+        ',',
+        dec_uint,
+        ',',
+        alphanumeric0,
+        newline,
+    )
+        .map(|seq| RideId {
+            company_id: seq.1,
+            ride_id: seq.3,
+            line_id: seq.5,
+            first_stop: seq.8,
+            last_stop: seq.10,
+            ride_name: empty_str_to_none(seq.12).map(|a| a.to_owned()),
+        })
+        .parse_next(input)
+}
+
+#[cfg(test)]
+mod test_rideid_parse {
+    use super::*;
+
+    #[test]
+    fn plain() {
+        let input = "%100,02871, ,001,004,\n";
+        let expected = RideId {
+            company_id: 100,
+            first_stop: 1,
+            last_stop: 4,
+            ride_id: 2871,
+            line_id: None,
+            ride_name: None,
+        };
+
+        assert_eq!(parse_ride_id.parse(input).unwrap(), expected);
+    }
+}
+
 fn parse_record(input: &mut &str) -> PResult<Record> {
     preceded(
         '#',
         (
             dec_uint,
+            newline,
+            repeat(0.., parse_ride_id),
             take_till(1.., '>').void(),
             parse_departure,
             repeat(1.., any_entry),
         ),
     )
-    .parse_next(input)
-    .map(|seq: (_, _, _, Vec<TimetableEntry>)| {
-        let mut v = vec![seq.2];
-        v.extend(seq.3);
+    .map(|seq: (_, _, _, _, _, Vec<TimetableEntry>)| {
+        let mut v = vec![seq.4];
+        v.extend(seq.5);
         Record {
             id: seq.0,
             timetable: v,
+            ride_id: seq.2,
         }
     })
+    .parse_next(input)
 }
 
 #[cfg(test)]
 mod test_record {
+    use pretty_assertions::assert_eq;
 
     use winnow::Parser;
 
     use crate::iff::{
         dayoffset::DayOffset,
-        parsing::{PlatformInfo, StopKind, TimetableEntry},
+        parsing::{PlatformInfo, RideId, StopKind, TimetableEntry},
     };
 
     use super::parse_record;
@@ -506,6 +652,28 @@ mod test_record {
         let record = super::parse_record.parse_next(&mut input).unwrap();
 
         assert_eq!(record.id, 2);
+
+        assert_eq!(
+            record.ride_id,
+            vec![
+                RideId {
+                    company_id: 100,
+                    first_stop: 1,
+                    last_stop: 4,
+                    ride_id: 2871,
+                    line_id: None,
+                    ride_name: None
+                },
+                RideId {
+                    company_id: 100,
+                    first_stop: 4,
+                    last_stop: 5,
+                    ride_id: 1771,
+                    line_id: None,
+                    ride_name: None
+                }
+            ]
+        );
 
         assert_eq!(
             record.timetable.first().unwrap(),
