@@ -42,12 +42,12 @@ impl RideValidity {
             .signed_duration_since(self.header.first_valid_date)
             .num_days() as u64;
 
-        Ok(*self
-            .validities
-            .get(&(day_id))
-            .unwrap()
-            .get(day_id as usize)
-            .unwrap())
+        // println!("Dayid: {}", day_id); //233
+
+        self.validities
+            .get(&footnote_id)
+            .ok_or(())
+            .map(|v| *v.get(day_id as usize).unwrap())
     }
 }
 
@@ -116,7 +116,13 @@ fn parse_single_day(input: &mut &str) -> PResult<bool> {
 }
 
 fn parse_footnote_record(input: &mut &str) -> PResult<DayValidityFootnote> {
-    ('#', dec_uint, newline, repeat(1.., parse_single_day))
+    (
+        '#',
+        dec_uint,
+        line_ending,
+        repeat(1.., parse_single_day),
+        line_ending,
+    )
         .map(|seq| DayValidityFootnote {
             id: seq.1,
             validity: seq.3,
@@ -317,6 +323,14 @@ pub struct Record {
     pub id: u64,
     pub timetable: Vec<TimetableEntry>,
     pub ride_id: Vec<RideId>,
+    pub day_validity_footnote: Footnote,
+}
+
+#[derive(PartialEq, Debug, Eq, Clone, Serialize)]
+pub struct Footnote {
+    pub footnote: u64,
+    pub first_stop: u64,
+    pub last_stop: u64,
 }
 
 #[derive(Serialize)]
@@ -547,8 +561,8 @@ fn parse_ride_id(input: &mut &str) -> PResult<RideId> {
         ',',
         dec_uint,
         ',',
-        alphanumeric0,
-        newline,
+        take_till(0.., |a: char| a.is_newline()),
+        line_ending,
     )
         .map(|seq| RideId {
             company_id: seq.1,
@@ -581,25 +595,37 @@ mod test_rideid_parse {
     }
 }
 
+fn parse_day_footnote(input: &mut &str) -> PResult<Footnote> {
+    preceded('-', (dec_uint, ',', dec_uint, ',', dec_uint, line_ending))
+        .map(|seq| Footnote {
+            footnote: seq.0,
+            first_stop: seq.2,
+            last_stop: seq.4,
+        })
+        .parse_next(input)
+}
+
 fn parse_record(input: &mut &str) -> PResult<Record> {
     preceded(
         '#',
         (
             dec_uint,
-            newline,
+            line_ending,
             repeat(0.., parse_ride_id),
+            parse_day_footnote,
             take_till(1.., '>').void(),
             parse_departure,
             repeat(1.., any_entry),
         ),
     )
-    .map(|seq: (_, _, _, _, _, Vec<TimetableEntry>)| {
-        let mut v = vec![seq.4];
-        v.extend(seq.5);
+    .map(|seq: (_, _, _, _, _, _, Vec<TimetableEntry>)| {
+        let mut v = vec![seq.5];
+        v.extend(seq.6);
         Record {
             id: seq.0,
             timetable: v,
             ride_id: seq.2,
+            day_validity_footnote: seq.3,
         }
     })
     .parse_next(input)
@@ -613,7 +639,7 @@ mod test_record {
 
     use crate::iff::{
         dayoffset::DayOffset,
-        parsing::{PlatformInfo, RideId, StopKind, TimetableEntry},
+        parsing::{Footnote, PlatformInfo, RideId, StopKind, TimetableEntry},
     };
 
     use super::parse_record;
@@ -652,6 +678,15 @@ mod test_record {
         let record = super::parse_record.parse_next(&mut input).unwrap();
 
         assert_eq!(record.id, 2);
+
+        assert_eq!(
+            record.day_validity_footnote,
+            Footnote {
+                footnote: 3,
+                first_stop: 0,
+                last_stop: 999,
+            },
+        );
 
         assert_eq!(
             record.ride_id,

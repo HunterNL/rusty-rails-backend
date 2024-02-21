@@ -1,5 +1,6 @@
 use std::{
     collections::{HashMap, HashSet},
+    fmt::Debug,
     fs::File,
     hash::Hash,
     iter,
@@ -108,8 +109,21 @@ impl DataRepo {
         let stations_file =
             File::open(cache_dir.join("stations.json")).expect("To find stations file");
 
-        let mut timetable = iff::parsing::Iff::timetable(&iff_file).unwrap();
-        let validity = iff::parsing::Iff::validity(&iff_file).unwrap();
+        let timetable = iff::parsing::Iff::timetable(&iff_file);
+        let validity = iff::parsing::Iff::validity(&iff_file);
+
+        if timetable.is_err() {
+            eprint!("{}", timetable.err().unwrap());
+            panic!("Error parsing timetable");
+        }
+
+        if validity.is_err() {
+            eprint!("{}", validity.err().unwrap());
+            panic!("Error parsing validity");
+        }
+
+        let mut timetable = timetable.unwrap();
+        let validity = validity.unwrap();
 
         let links: Vec<Link> = extract_links(&route_file);
         let link_map: HashMap<LinkCode, Link> = links
@@ -167,6 +181,11 @@ impl DataRepo {
         self.rides
             .iter()
             .filter(|r| r.start_time() < time && r.end_time() > time)
+            .filter(|r| {
+                self.validity
+                    .is_valid_on_day(r.day_validity_footnote.footnote, *date)
+                    .unwrap()
+            })
             .cloned()
             .collect()
     }
