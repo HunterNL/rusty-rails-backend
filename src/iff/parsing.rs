@@ -5,7 +5,7 @@ use std::fmt::Display;
 
 use std::{fs::File, io::Read};
 use winnow::ascii::{
-    alphanumeric0, alphanumeric1, dec_uint, line_ending, multispace0, newline, space0,
+    alphanumeric1, dec_uint, line_ending, multispace0, space0,
 };
 use winnow::combinator::{alt, delimited, fail, opt, preceded, repeat, terminated};
 use winnow::stream::AsChar;
@@ -570,7 +570,7 @@ fn parse_ride_id(input: &mut &str) -> PResult<RideId> {
             line_id: seq.5,
             first_stop: seq.8,
             last_stop: seq.10,
-            ride_name: empty_str_to_none(seq.12).map(|a| a.to_owned()),
+            ride_name: empty_str_to_none(seq.12).map(std::borrow::ToOwned::to_owned),
         })
         .parse_next(input)
 }
