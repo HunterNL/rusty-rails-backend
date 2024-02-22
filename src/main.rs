@@ -6,6 +6,8 @@ use std::path::PathBuf;
 
 use clap::{Parser, Subcommand};
 
+static SECRET_ENV_PATH: &str = "./config/secrets.env";
+
 #[derive(Parser)]
 struct CliOptions {
     #[arg(short,long,default_value_t=String::from("./cache"))]
@@ -47,9 +49,9 @@ struct AppConfig {
     allow_cache_overwrite: bool,
 }
 fn main() {
-    match dotenvy::from_path("./config/secrets.env") {
-        Ok(()) => {}
-        Err(_) => println!("Expected to find config/secrets.env"),
+    match dotenvy::from_path(SECRET_ENV_PATH) {
+        Ok(()) => println!("Loaded env from {}", SECRET_ENV_PATH),
+        Err(_) => println!("Skipped loading env from  {}", SECRET_ENV_PATH),
     }
 
     let cli_options = CliOptions::parse();

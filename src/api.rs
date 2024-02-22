@@ -62,9 +62,9 @@ fn prepare_files(data: &DataRepo) -> Result<(), ()> {
     let link_file_content = serde_json::to_vec(data.links()).unwrap();
     let station_file_content = serde_json::to_vec(data.stations()).unwrap();
 
-    fs::create_dir_all("cache/http").unwrap();
-    fs::write("cache/http/stations.json", station_file_content).unwrap();
-    fs::write("cache/http/links.json", link_file_content).unwrap();
+    fs::create_dir_all("./cache/http").unwrap();
+    fs::write("./cache/http/stations.json", station_file_content).unwrap();
+    fs::write("./cache/http/links.json", link_file_content).unwrap();
 
     Ok(())
 }

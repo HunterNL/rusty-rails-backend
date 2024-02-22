@@ -103,10 +103,12 @@ fn has_complete_data(
 
 impl DataRepo {
     pub fn new(cache_dir: &std::path::Path) -> Self {
-        let iff_file = File::open(cache_dir.join("ns-latest.zip")).expect("To find timetable file");
-        let route_file = File::open(cache_dir.join("route.json")).expect("To find route file");
-        let stations_file =
-            File::open(cache_dir.join("stations.json")).expect("To find stations file");
+        let iff_file = File::open(cache_dir.join("remote").join("ns-latest.zip"))
+            .expect("To find timetable file");
+        let route_file =
+            File::open(cache_dir.join("remote").join("route.json")).expect("To find route file");
+        let stations_file = File::open(cache_dir.join("remote").join("stations.json"))
+            .expect("To find stations file");
 
         let timetable = iff::parsing::Iff::timetable(&iff_file);
         let validity = iff::parsing::Iff::validity(&iff_file);
@@ -138,14 +140,18 @@ impl DataRepo {
             .last_valid_date
             .signed_duration_since(timetable.header.first_valid_date);
 
-        println!("Pre: {}", timetable.rides.len());
-        println!("Start date: {}", timetable.header.first_valid_date);
-        println!("End date: {}", timetable.header.last_valid_date);
-        println!("Date count: {}", duration.num_days());
+        println!(
+            "Timetable start date: {}",
+            timetable.header.first_valid_date
+        );
+        println!("Timetable end date: {}", timetable.header.last_valid_date);
+        println!("Day count: {}", duration.num_days());
 
         // TODO Drop this check and deal with skipping waypoints throughout the app, or deal with translating stations from the iff into coordinates
         //
         // This filters out timetable entries that contain stops that we don't have data on, mostly (entirely?) international trains
+
+        println!("Pre data filter ride #: {}", timetable.rides.len());
         timetable
             .rides
             .retain(|ride| has_complete_data(ride, &station_codes, &link_map));
@@ -159,7 +165,7 @@ impl DataRepo {
         //     })
         // })
 
-        println!("Post: {}", timetable.rides.len());
+        println!("Post data filter ride #: {}", timetable.rides.len());
 
         // println!("{:?}", stations);
 

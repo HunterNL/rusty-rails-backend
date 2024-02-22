@@ -69,7 +69,7 @@ pub fn update(config: AppConfig) -> Result<(), String> {
         return Err("Expected cache_dir to be a directory".to_owned());
     }
 
-    fs::create_dir_all(&config.cache_dir)
+    fs::create_dir_all(config.cache_dir.join("remote"))
         .map_err(|e| format!("Error creating cache directory: {e}"))?;
 
     match update_timetable(&config) {
