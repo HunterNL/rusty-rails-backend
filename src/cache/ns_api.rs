@@ -1,37 +1,19 @@
 use reqwest::blocking::Client;
+use thiserror::Error;
 
 const API_HOST: &str = "https://gateway.apiportal.ns.nl/";
 const ROUTE_PATH: &str = "Spoorkaart-API/api/v1/spoorkaart";
 const STATION_PATH: &str = "reisinformatie-api/api/v2/stations";
 
+#[derive(Error, Debug)]
+pub enum ApiError {
+    #[error("HTTP request error: {0}")]
+    Network(reqwest::Error),
+}
+
 pub struct NsApi {
     key: String,
     client: Client,
-}
-
-impl NsApi {
-    fn get_file(&self, path: &str) -> Result<bytes::Bytes, String> {
-        let request = self
-            .client
-            .get(String::new() + API_HOST + path)
-            .header("Ocp-Apim-Subscription-Key", &self.key)
-            .build()
-            .map_err(|e| format!("Error constructing HTTP request: {e}"))?;
-
-        self.client
-            .execute(request)
-            .map_err(|e| format!("Error making HTTP request: {e}"))?
-            .bytes()
-            .map_err(|e| format!("Error getting bytes: {e}"))
-    }
-
-    pub fn stations(&self) -> Result<bytes::Bytes, String> {
-        self.get_file(STATION_PATH)
-    }
-
-    pub fn routes(&self) -> Result<bytes::Bytes, String> {
-        self.get_file(ROUTE_PATH)
-    }
 }
 
 impl NsApi {
@@ -40,5 +22,28 @@ impl NsApi {
             key,
             client: Client::new(),
         }
+    }
+
+    pub fn fetch_stations(&self) -> Result<bytes::Bytes, ApiError> {
+        self.fetch_as_bytes(STATION_PATH)
+    }
+
+    pub fn fetch_routes(&self) -> Result<bytes::Bytes, ApiError> {
+        self.fetch_as_bytes(ROUTE_PATH)
+    }
+
+    fn fetch_as_bytes(&self, path: &str) -> Result<bytes::Bytes, ApiError> {
+        let request = self
+            .client
+            .get(String::new() + API_HOST + path)
+            .header("Ocp-Apim-Subscription-Key", &self.key)
+            .build()
+            .map_err(ApiError::Network)?;
+
+        self.client
+            .execute(request)
+            .map_err(ApiError::Network)?
+            .bytes()
+            .map_err(ApiError::Network)
     }
 }

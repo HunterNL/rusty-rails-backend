@@ -103,7 +103,7 @@ fn update_route_data(config: &AppConfig, ns_api: &NsApi) -> Result<(), String> {
         let mut file = File::create(filepath).map_err(|e| format!("Error creating file: {e}"))?;
 
         let data = ns_api
-            .routes()
+            .fetch_routes()
             .map_err(|e| format!("Error getting station data: {e}"))?;
 
         file.write_all(&data)
@@ -119,7 +119,7 @@ fn update_station_data(config: &AppConfig, ns_api: &NsApi) -> Result<(), String>
         let mut file = File::create(filepath).map_err(|e| format!("Error creating file: {e}"))?;
 
         let data = ns_api
-            .stations()
+            .fetch_stations()
             .map_err(|e| format!("Error getting station data file: {e}"))?;
 
         file.write_all(&data)

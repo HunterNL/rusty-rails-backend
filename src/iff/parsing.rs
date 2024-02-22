@@ -4,9 +4,7 @@ use std::collections::HashMap;
 use std::fmt::Display;
 
 use std::{fs::File, io::Read};
-use winnow::ascii::{
-    alphanumeric1, dec_uint, line_ending, multispace0, space0,
-};
+use winnow::ascii::{alphanumeric1, dec_uint, line_ending, multispace0, space0};
 use winnow::combinator::{alt, delimited, fail, opt, preceded, repeat, terminated};
 use winnow::stream::AsChar;
 use winnow::trace::trace;
@@ -38,6 +36,7 @@ impl RideValidity {
             return Err(()); // Out of validity range
         }
 
+        // Might be off by one
         let day_id = date
             .signed_duration_since(self.header.first_valid_date)
             .num_days() as u64;
@@ -73,6 +72,7 @@ fn read_file_from_archive(archive: &File, filename: &str) -> Result<String, Stri
 
     file.read_to_end(&mut buf).map_err(|e| e.to_string())?;
 
+    // File should be ISO 8859-1 / Latin1, this should work fine
     let str_content =
         std::str::from_utf8(buf.as_slice()).map_err(|_| "file contained invalid utf-8")?;
 
