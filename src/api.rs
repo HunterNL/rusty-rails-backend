@@ -53,8 +53,6 @@ pub fn serve(config: AppConfig) -> Result<(), String> {
     let data = datarepo::DataRepo::new(&config.cache_dir);
     prepare_files(&data).map_err(|()| "Error preparing files".to_owned())?;
 
-    // println!("{:?}", data.links());
-
     start_server(config, data).map_err(|e| e.to_string())
 }
 
@@ -69,10 +67,6 @@ fn prepare_files(data: &DataRepo) -> Result<(), ()> {
     Ok(())
 }
 
-// struct ApiEndpoint<'a> {
-//     data: &'a DataRepo,
-// }
-
 #[handler]
 fn active_rides_endpoint(data: Data<&Arc<DataRepo>>, _req: String) -> Response {
     let timetable_tz = chrono_tz::Europe::Amsterdam;
@@ -85,8 +79,6 @@ fn active_rides_endpoint(data: Data<&Arc<DataRepo>>, _req: String) -> Response {
     let v: Vec<_> = rides.iter().map(|r| r.as_api_object()).collect();
 
     let data = serde_json::to_vec(&v).unwrap();
-
-    // println!("{:?}", data.rides_active_at_time(&now.naive_local().time()));
 
     Response::builder()
         .header(header::CONTENT_TYPE, "application/json; charset=utf-8")
@@ -102,7 +94,7 @@ async fn start_server(
     let stations_endpoint = StaticFileEndpoint::new("cache/http/stations.json");
     let links_endpoint = StaticFileEndpoint::new("cache/http/links.json");
 
-    let cors = Cors::new().allow_origin("https://localhost:3000");
+    let cors = Cors::new().allow_origins(["https://localhost:3000", "https://127.0.0.1:3000"]);
 
     let app = Route::new()
         .at("/hello/:name", get(hello))
@@ -112,27 +104,9 @@ async fn start_server(
         .with(AddData::new(d))
         .with(cors);
 
-    // if let SSLConfig::Native(id, password) = config.ssl {
-    //     let listener2 = listener_1.native_tls(NativeTlsConfig::new().password(password).pkcs12(id));
-    // } else {
-    //     let listener2 = listener_1;
-    // }
-
     let server = Server::new(TcpListener::bind("localhost:9001"));
 
     server.run(app).await?;
-
-    // println!("{}", timetable.header.company_id);
-    // println!("{}", timetable.header.first_valid_date);
-    // println!("{}", timetable.header.last_valid_date);
-
-    // let a: Vec<String> = timetable
-    //     .rides
-    //     .iter()
-    //     .map(|ride| ride.timetable.first().unwrap().code.clone())
-    //     .collect();
-
-    // println!("{}", a.join(","));
 
     Ok(())
 }
