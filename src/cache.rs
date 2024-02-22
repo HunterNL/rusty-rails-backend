@@ -1,5 +1,3 @@
-mod ns_api;
-
 use std::{
     fs::{self, File},
     io::Write,
@@ -9,9 +7,7 @@ use std::{
 
 use reqwest::blocking::Client;
 
-use crate::AppConfig;
-
-use self::ns_api::NsApi;
+use crate::{ns_api::NsApi, AppConfig};
 
 static TIMETABLE_CACHE: CacheItem = CacheItem {
     url: "http://data.ndovloket.nl/ns/ns-latest.zip",

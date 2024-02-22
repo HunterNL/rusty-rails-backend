@@ -1,6 +1,7 @@
 mod api;
 mod cache;
 mod iff;
+mod ns_api;
 
 use std::path::PathBuf;
 
