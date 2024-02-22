@@ -11,7 +11,7 @@ static SECRET_ENV_PATH: &str = "./config/secrets.env";
 
 #[derive(Parser)]
 struct CliOptions {
-    #[arg(short,long,default_value_t=String::from("./cache"))]
+    #[arg(short,long,default_value_t=String::from("./cache"),global=true)]
     cache_dir: String,
 
     #[command(subcommand)]
@@ -28,21 +28,6 @@ enum SubCommand {
     Fetch,
     Serve,
 }
-
-// enum SSLConfig {
-//     None,
-//     Native(Vec<u8>, String),
-// }
-
-// impl SSLConfig {
-//     fn from_option(enable: bool) -> SSLConfig {
-//         if !enable {
-//             return SSLConfig::None;
-//         }
-//         let id = fs::read("./key.p12").expect("key file present");
-//         SSLConfig::Native(id, "".to_owned())
-//     }
-// }
 
 struct AppConfig {
     ns_api_key: Option<String>,

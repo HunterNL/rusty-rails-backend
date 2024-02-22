@@ -1,4 +1,6 @@
-use std::{fs, sync::Arc};
+mod datarepo;
+
+use std::{fs, path::Path, sync::Arc};
 
 use poem::{
     endpoint::StaticFileEndpoint,
@@ -6,12 +8,10 @@ use poem::{
     http::header,
     listener::TcpListener,
     middleware::{AddData, Cors},
-    web::{Data, Path},
+    web::Data,
     EndpointExt, Response, Route, Server,
 };
 use serde::{ser::SerializeStruct, Serialize};
-
-mod datarepo;
 
 use crate::{iff::parsing::Record, AppConfig};
 
@@ -44,25 +44,36 @@ impl<'a> Serialize for ApiObject<'a, Record> {
     }
 }
 
+const HTTP_CACHE_SUBDIR: &str = "http";
+const HTTP_CACHE_STATION_PATH: &str = "stations.json";
+const HTTP_CACHE_LINK_PATH: &str = "links.json";
+
 #[handler]
-fn hello(Path(name): Path<String>) -> String {
+fn hello(poem::web::Path(name): poem::web::Path<String>) -> String {
     format!("hello: {name}")
 }
 
 pub fn serve(config: AppConfig) -> Result<(), String> {
+    let http_dir = config.cache_dir.join(HTTP_CACHE_SUBDIR);
     let data = datarepo::DataRepo::new(&config.cache_dir);
-    prepare_files(&data).map_err(|()| "Error preparing files".to_owned())?;
+    prepare_files(&data, &http_dir).map_err(|()| "Error preparing files".to_owned())?;
 
     start_server(config, data).map_err(|e| e.to_string())
 }
 
-fn prepare_files(data: &DataRepo) -> Result<(), ()> {
-    let link_file_content = serde_json::to_vec(data.links()).unwrap();
-    let station_file_content = serde_json::to_vec(data.stations()).unwrap();
+fn prepare_files(data: &DataRepo, http_cache_dir: &Path) -> Result<(), ()> {
+    let link_file_content = serde_json::to_vec(data.links()).expect("should serialize links");
+    let station_file_content =
+        serde_json::to_vec(data.stations()).expect("should serialize stations");
 
-    fs::create_dir_all("./cache/http").unwrap();
-    fs::write("./cache/http/stations.json", station_file_content).unwrap();
-    fs::write("./cache/http/links.json", link_file_content).unwrap();
+    fs::create_dir_all(http_cache_dir).expect("Http cache dir to exist or be created");
+    fs::write(
+        http_cache_dir.join(HTTP_CACHE_STATION_PATH),
+        station_file_content,
+    )
+    .expect("write stations file");
+    fs::write(http_cache_dir.join(HTTP_CACHE_LINK_PATH), link_file_content)
+        .expect("write links file");
 
     Ok(())
 }
@@ -86,13 +97,11 @@ fn active_rides_endpoint(data: Data<&Arc<DataRepo>>, _req: String) -> Response {
 }
 
 #[tokio::main]
-async fn start_server(
-    _config: AppConfig,
-    data: DataRepo,
-) -> Result<(), Box<dyn std::error::Error>> {
+async fn start_server(config: AppConfig, data: DataRepo) -> Result<(), Box<dyn std::error::Error>> {
     let d = Arc::new(data);
-    let stations_endpoint = StaticFileEndpoint::new("cache/http/stations.json");
-    let links_endpoint = StaticFileEndpoint::new("cache/http/links.json");
+    let https_serve_dir = config.cache_dir.join(HTTP_CACHE_SUBDIR);
+    let stations_endpoint = StaticFileEndpoint::new(https_serve_dir.join(HTTP_CACHE_STATION_PATH));
+    let links_endpoint = StaticFileEndpoint::new(https_serve_dir.join(HTTP_CACHE_LINK_PATH));
 
     let cors = Cors::new().allow_origins(["https://localhost:3000", "https://127.0.0.1:3000"]);
 
