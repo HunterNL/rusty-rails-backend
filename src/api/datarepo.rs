@@ -19,6 +19,7 @@ use crate::{
 
 use self::{links::Link, stations::Station};
 
+/// A master container for all data, this is the struct eventually passed to the server
 pub struct DataRepo {
     links: Vec<Link>,
     stations: Vec<stations::Station>,
@@ -27,6 +28,7 @@ pub struct DataRepo {
     validity: iff::parsing::RideValidity,
 }
 
+/// Key to identify links, looking up links with the waypoint identifiers the wrong way around should return a corrected Link
 #[derive(Eq, Hash, PartialEq)]
 pub struct LinkCode(String, String);
 
@@ -61,7 +63,7 @@ impl LinkMap for HashMap<LinkCode, Link> {
         self.contains_key(code)
     }
 }
-
+/// Takes a Leg reference, if it is a moving leg: returns all the LinkCodes required to traverse this leg
 fn leg_codes(leg: &LegKind) -> Option<Vec<LinkCode>> {
     match leg {
         LegKind::Stationary(_) => None,

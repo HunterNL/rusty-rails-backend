@@ -6,30 +6,26 @@ use super::LinkCode;
 
 pub fn extract_links(file: &File) -> Vec<Link> {
     let reader = BufReader::new(file);
+
+    // Parse into serde_json::Value first to easily navigate down the json data
     let mut json: serde_json::Value = serde_json::from_reader(reader).expect("valid parse");
 
     let mut json = json
         .as_object_mut()
-        .unwrap()
+        .expect("top level to be an object")
         .get_mut("payload")
-        .unwrap()
+        .expect("a 'payload' member object")
         .take();
 
     let json = json
         .as_object_mut()
-        .unwrap()
+        .expect("top level to be an object")
         .get_mut("features")
-        .unwrap()
+        .expect("a 'features' member object")
         .take();
 
-    // println!("{:?}", json);
-
-    // println!("{}", json.is_array());
-    // println!("{}", json.get(0).unwrap().is_object());
-
-    let links: Vec<JsonLink> = serde_json::from_value(json)
-        // .map_err(|e| format!("{} {} {:?}", e.line(), e.column(), e.classify()))
-        .unwrap();
+    let links: Vec<JsonLink> =
+        serde_json::from_value(json).expect("should parse JsonLinks from raw link json");
 
     links
         .into_iter()
@@ -51,6 +47,7 @@ impl Coords2D {
     }
 }
 
+/// A path between two timetable points
 #[derive(Debug, Serialize, Clone)]
 pub struct Link {
     // id: u32,
@@ -137,6 +134,7 @@ fn path_waypoints(path: &[Coords2D]) -> Vec<f64> {
     // })
 }
 
+/// A point on a Path
 #[derive(Debug, Serialize, Clone)]
 struct PathPoint {
     coordinates: Coords2D,
@@ -170,6 +168,7 @@ struct Geometry {
     coordinates: Vec<Coords2D>,
 }
 
+/// A linear path formed of a series of PathPoints
 #[derive(Debug, Serialize, Clone)]
 struct Path {
     pub points: Vec<PathPoint>,
