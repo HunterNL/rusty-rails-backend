@@ -1,6 +1,7 @@
 mod api;
 mod cache;
 mod iff;
+mod ndovloket_api;
 mod ns_api;
 
 use std::path::PathBuf;

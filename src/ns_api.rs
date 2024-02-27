@@ -24,12 +24,12 @@ impl NsApi {
         }
     }
 
-    pub fn fetch_stations(&self) -> Result<bytes::Bytes, ApiError> {
-        self.fetch_as_bytes(STATION_PATH)
+    pub fn fetch_stations(&self) -> Result<Vec<u8>, ApiError> {
+        self.fetch_as_bytes(STATION_PATH).map(|b| b.into())
     }
 
-    pub fn fetch_routes(&self) -> Result<bytes::Bytes, ApiError> {
-        self.fetch_as_bytes(ROUTE_PATH)
+    pub fn fetch_routes(&self) -> Result<Vec<u8>, ApiError> {
+        self.fetch_as_bytes(ROUTE_PATH).map(|b| b.into())
     }
 
     fn fetch_as_bytes(&self, path: &str) -> Result<bytes::Bytes, ApiError> {

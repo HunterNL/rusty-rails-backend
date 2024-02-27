@@ -1,143 +1,106 @@
 use std::{
+    error::Error,
     fs::{self, File},
     io::Write,
-    path::Path,
+    path::{Path, PathBuf},
     time::Duration,
 };
 
-use reqwest::blocking::Client;
-
-use crate::{ns_api::NsApi, AppConfig};
-
-static TIMETABLE_CACHE: CacheItem = CacheItem {
-    url: "http://data.ndovloket.nl/ns/ns-latest.zip",
-    file_path: "ns-latest.zip",
+use crate::{
+    ndovloket_api,
+    ns_api::{self},
+    AppConfig,
 };
 
-static STATION_FILEPATH: &str = "stations.json";
-static ROUTE_FILEPATH: &str = "route.json";
+const TIMETABLE_PATH: &str = "ns-latest.zip";
+const STATION_FILEPATH: &str = "stations.json";
+const ROUTE_FILEPATH: &str = "route.json";
 
-struct CacheItem {
-    url: &'static str,
-    file_path: &'static str,
+pub struct Cache {
+    client: reqwest::blocking::Client,
+    allow_overwrite: bool,
+    base_dir: PathBuf,
 }
 
-// enum UpdateResult {
-//     Ok,
-//     Skippped,
-//     Error(String),
-// }
-
-impl CacheItem {
-    fn ensure_present(
-        &self,
-        client: Client,
+impl Cache {
+    pub fn new(
         allow_overwrite: bool,
-        base_dir: &Path,
-    ) -> Result<(), String> {
-        let file_path = base_dir.join(self.file_path);
+        base_dir: PathBuf,
+        client: Option<reqwest::blocking::Client>,
+    ) -> Result<Self, String> {
+        let client = client.unwrap_or_else(|| {
+            reqwest::blocking::Client::builder()
+                .connect_timeout(Duration::from_secs(30))
+                .build()
+                .expect("client") // TODO Bubble up this error
+        });
 
-        if file_path.exists() && !allow_overwrite {
+        fs::create_dir_all(&base_dir).map_err(|e| e.to_string())?;
+
+        Ok(Self {
+            allow_overwrite,
+            base_dir,
+            client,
+        })
+    }
+
+    pub fn ensure_present<S>(&self, source: S, output_path: &Path) -> Result<(), String>
+    where
+        S: FnOnce() -> Result<Vec<u8>, Box<dyn Error>>,
+    {
+        let file_path = self.base_dir.join(output_path);
+
+        if file_path.exists() && !self.allow_overwrite {
             return Err("File already exist, pass --allow-cache-overwrite to force update".into());
         };
 
-        let request = client
-            .get(self.url)
-            .build()
-            .map_err(|e| format!("Error constructing HTTP request: {e}"))?;
-
-        let response = client
-            .execute(request)
-            .map_err(|e| format!("Error making HTTP request: {e}"))?
-            .bytes()
-            .expect("Valid bytes");
-
         let mut file =
-            File::create(file_path).map_err(|e| format!("Error making file handle: {e}"))?;
+            File::create(&file_path).map_err(|e| format!("Error making file handle: {e}"))?;
 
-        file.write_all(&response)
+        let content = source().map_err(|e| e.to_string())?;
+
+        file.write_all(&content)
             .map_err(|e| format!("Error writing response file: {e}"))
     }
 }
 
 pub fn update(config: AppConfig) -> Result<(), String> {
+    let storage_dir = config.cache_dir.join("remote");
+
     if config.cache_dir.extension().is_some() {
         return Err("Expected cache_dir to be a directory".to_owned());
     }
 
-    fs::create_dir_all(config.cache_dir.join("remote"))
-        .map_err(|e| format!("Error creating cache directory: {e}"))?;
+    let cache = Cache::new(config.allow_cache_overwrite, storage_dir, None)?;
 
-    match update_timetable(&config) {
-        Ok(()) => println!("Timetable updated"),
-        Err(e) => println!("Error updating timetable: {e}"),
-    }
+    cache
+        .ensure_present(
+            ndovloket_api::NDovLoket::fetch_timetable,
+            Path::new(TIMETABLE_PATH),
+        )
+        .unwrap_or_else(|e| eprintln!("{}", e));
 
     if config.ns_api_key.is_some() {
-        update_ns_data(&config);
+        let ns = ns_api::NsApi::new(config.ns_api_key.unwrap());
+
+        cache
+            .ensure_present(
+                || ns.fetch_routes().map_err(|e| Box::new(e) as Box<dyn Error>),
+                Path::new(ROUTE_FILEPATH),
+            )
+            .unwrap_or_else(|e| eprintln!("{}", e));
+        cache
+            .ensure_present(
+                || {
+                    ns.fetch_stations()
+                        .map_err(|e| Box::new(e) as Box<dyn Error>)
+                },
+                Path::new(STATION_FILEPATH),
+            )
+            .unwrap_or_else(|e| eprintln!("{}", e));
     } else {
-        println!("Skipping NS data, no API key provided");
+        println!("Skipping updating NS data, no key");
     }
 
-    Ok(())
-}
-
-fn update_ns_data(config: &AppConfig) {
-    let ns_api = NsApi::new(config.ns_api_key.as_ref().unwrap().clone());
-
-    if let Some(e) = update_station_data(config, &ns_api).err() {
-        println!("{e}");
-    }
-    if let Some(e) = update_route_data(config, &ns_api).err() {
-        println!("{e}");
-    }
-}
-
-fn update_route_data(config: &AppConfig, ns_api: &NsApi) -> Result<(), String> {
-    let filepath = config.cache_dir.join("remote").join(ROUTE_FILEPATH);
-    if !filepath.exists() || config.allow_cache_overwrite {
-        let mut file = File::create(filepath).map_err(|e| format!("Error creating file: {e}"))?;
-
-        let data = ns_api
-            .fetch_routes()
-            .map_err(|e| format!("Error getting station data: {e}"))?;
-
-        file.write_all(&data)
-            .map_err(|e| format!("Error writing data: {e}"))?;
-    };
-
-    Ok(())
-}
-
-fn update_station_data(config: &AppConfig, ns_api: &NsApi) -> Result<(), String> {
-    let filepath = config.cache_dir.join("remote").join(STATION_FILEPATH);
-    if !filepath.exists() || config.allow_cache_overwrite {
-        let mut file = File::create(filepath).map_err(|e| format!("Error creating file: {e}"))?;
-
-        let data = ns_api
-            .fetch_stations()
-            .map_err(|e| format!("Error getting station data file: {e}"))?;
-
-        file.write_all(&data)
-            .map_err(|e| format!("Error writing file: {e}"))?;
-    }
-
-    Ok(())
-}
-
-fn update_timetable(config: &AppConfig) -> Result<(), String> {
-    let client = reqwest::blocking::Client::builder()
-        .connect_timeout(Duration::from_secs(30))
-        .build()
-        .map_err(|e| format!("Error building client: {e}"))?;
-
-    match TIMETABLE_CACHE.ensure_present(
-        client,
-        config.allow_cache_overwrite,
-        &config.cache_dir.join("remote"),
-    ) {
-        Ok(()) => println!("Updated timetable"),
-        Err(msg) => println!("Error updating timetable: {msg}"),
-    };
     Ok(())
 }
