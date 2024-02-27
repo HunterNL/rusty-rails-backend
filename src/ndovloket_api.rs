@@ -1,4 +1,4 @@
-//! This module gets the timetable file from http://data.ndovloket.nl
+//! This module gets the timetable file from <http://data.ndovloket.nl>
 use std::{error::Error, time::Duration};
 
 use thiserror::Error;

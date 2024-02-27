@@ -43,10 +43,10 @@ impl RideValidity {
 
         // println!("Dayid: {}", day_id); //233
 
-        self.validities
-            .get(&footnote_id)
-            .ok_or(())
-            .map(|v| *v.get(day_id as usize).unwrap())
+        self.validities.get(&footnote_id).ok_or(()).map(|v| {
+            *v.get(day_id as usize)
+                .expect("to find footnote in validity lookup")
+        })
     }
 }
 
@@ -134,11 +134,11 @@ fn parse_footnote_file(input: &mut &str) -> PResult<RideValidity> {
     (parse_header, repeat(0.., parse_footnote_record))
         .map(|seq: (Header, Vec<DayValidityFootnote>)| RideValidity {
             header: seq.0,
-            validities: HashMap::from_iter(
-                seq.1
-                    .into_iter()
-                    .map(|footnote| (footnote.id, footnote.validity)),
-            ),
+            validities: seq
+                .1
+                .into_iter()
+                .map(|footnote| (footnote.id, footnote.validity))
+                .collect::<HashMap<_, _>>(),
         })
         .parse_next(input)
 }
@@ -378,39 +378,46 @@ impl Record {
         *self
             .timetable
             .first()
-            .unwrap()
+            .expect("timetable to have an entry")
             .stop_kind
             .departure_time()
-            .unwrap()
+            .expect("first entry to have a departure time")
     }
 
     pub fn end_time(&self) -> DayOffset {
         *self
             .timetable
             .last()
-            .unwrap()
+            .expect("timetable to have an entry")
             .stop_kind
             .arrival_time()
-            .unwrap()
+            .expect("last entry to have an arrival time")
     }
 
     pub(crate) fn generate_legs(&self) -> Vec<Leg> {
         let mut out = vec![];
         let mut waypoints = vec![];
-        let first_stop = self.timetable.first().unwrap();
+        let first_stop = self.timetable.first().expect("timetable to have an entry");
         let mut previous_stop = first_stop;
 
         out.push(leg_for_stop(first_stop));
 
         self.timetable.iter().skip(1).for_each(|entry| {
+            // Collect non-stopping points into waypoints. These are needed later on to find the right Links between Stations
             if entry.stop_kind.is_waypoint() {
                 waypoints.push(entry);
                 return;
             }
 
             out.push(Leg {
-                start: *previous_stop.stop_kind.departure_time().unwrap(),
-                end: *entry.stop_kind.arrival_time().unwrap(),
+                start: *previous_stop
+                    .stop_kind
+                    .departure_time()
+                    .expect("leg start to have a departure time"),
+                end: *entry
+                    .stop_kind
+                    .arrival_time()
+                    .expect("leg end to have an arrival time"),
                 kind: LegKind::Moving(
                     previous_stop.code.clone(),
                     entry.code.clone(),
