@@ -3,10 +3,17 @@ use std::{cmp, error::Error, fmt::Display, str::FromStr};
 use chrono::{NaiveTime, Timelike};
 use serde::Serialize;
 
-/// Time as an offset from midnight
-/// Does not keep any date information
-/// Offset might overflow into next day
-/// Precision in minutes
+const MILLISECOND: u32 = 1;
+const SECOND: u32 = MILLISECOND * 1000;
+const MINUTE: u32 = SECOND * 60;
+const HOUR: u32 = MINUTE * 60;
+
+/**
+Time as an offset from midnight.
+Does not keep any date information.
+Offset might overflow into next day.
+Precision in milliseconds.
+*/
 #[derive(Debug, PartialEq, Eq, Clone, Copy, Serialize)]
 #[serde(transparent)]
 pub struct DayOffset {
@@ -28,7 +35,7 @@ impl PartialOrd for DayOffset {
 impl DayOffset {
     pub fn from_hour_minute(hours: u32, minutes: u32) -> Self {
         Self {
-            offset: hours * 60 + minutes,
+            offset: hours * HOUR + minutes * MINUTE,
         }
     }
 
@@ -76,8 +83,6 @@ impl FromStr for DayOffset {
             .parse()
             .map_err(|_| ParseError::SubsliceParseFailed)?;
 
-        Ok(Self {
-            offset: hours * 60 + minutes,
-        })
+        Ok(DayOffset::from_hour_minute(hours, minutes))
     }
 }

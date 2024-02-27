@@ -10,9 +10,9 @@ mod links;
 mod stations;
 use crate::{
     api::datarepo::{links::extract_links, stations::extract_stations},
+    dayoffset::DayOffset,
     iff::{
         self,
-        dayoffset::DayOffset,
         parsing::{Leg, LegKind, Record},
     },
 };
@@ -66,7 +66,7 @@ impl LinkMap for HashMap<LinkCode, Link> {
 /// Takes a Leg reference, if it is a moving leg: returns all the `LinkCodes` required to traverse this leg
 fn leg_codes(leg: &LegKind) -> Option<Vec<LinkCode>> {
     match leg {
-        LegKind::Stationary(_) => None,
+        LegKind::Stationary(_, _) => None,
         LegKind::Moving(from, to, waypoints) => Some({
             iter::once(from)
                 .chain(waypoints.iter())
@@ -85,7 +85,7 @@ fn leg_has_complete_data(
     links: &HashMap<LinkCode, Link>,
 ) -> bool {
     match &leg.kind {
-        iff::parsing::LegKind::Stationary(code) => station_codes.contains(code),
+        iff::parsing::LegKind::Stationary(code, _) => station_codes.contains(code),
         iff::parsing::LegKind::Moving(_from, _to, _waypoints) => leg_codes(&leg.kind)
             .iter()
             .all(|leg_code| leg_code.iter().all(|code| links.contains_undirected(code))),

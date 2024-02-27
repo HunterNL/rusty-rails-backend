@@ -34,7 +34,6 @@ impl<'a> Serialize for ApiObject<'a, Record> {
     {
         let mut ride = serializer.serialize_struct("ride", 10)?;
         ride.serialize_field("id", &self.0.id)?;
-        ride.serialize_field("stops", &self.0.timetable)?;
         ride.serialize_field("startTime", &self.0.start_time())?;
         ride.serialize_field("endTime", &self.0.end_time())?;
         ride.serialize_field("distance", &0)?;

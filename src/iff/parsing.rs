@@ -12,7 +12,7 @@ use winnow::trace::trace;
 use winnow::token::{one_of, take, take_till, take_while};
 use winnow::{PResult, Parser};
 
-use super::dayoffset::DayOffset;
+use crate::dayoffset::DayOffset;
 
 const TIMETABLE_FILE_NAME: &str = "timetbls.dat";
 const DATE_FORMAT_LEN: usize = "DDMMYYYY".len(); // Lenght of dates as they appear in the iff file
@@ -335,7 +335,7 @@ pub struct Footnote {
 
 #[derive(Serialize)]
 pub enum LegKind {
-    Stationary(String),
+    Stationary(String, StopKind),
     Moving(String, String, Vec<String>),
 }
 
@@ -369,7 +369,7 @@ fn leg_for_stop(entry: &TimetableEntry) -> Leg {
     Leg {
         start: arrival,
         end: departure,
-        kind: LegKind::Stationary(entry.code.clone()),
+        kind: LegKind::Stationary(entry.code.clone(), entry.stop_kind.clone()),
     }
 }
 
@@ -644,9 +644,9 @@ mod test_record {
 
     use winnow::Parser;
 
-    use crate::iff::{
+    use crate::{
         dayoffset::DayOffset,
-        parsing::{Footnote, PlatformInfo, RideId, StopKind, TimetableEntry},
+        iff::parsing::{Footnote, PlatformInfo, RideId, StopKind, TimetableEntry},
     };
 
     use super::parse_record;
