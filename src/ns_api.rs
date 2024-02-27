@@ -25,11 +25,11 @@ impl NsApi {
     }
 
     pub fn fetch_stations(&self) -> Result<Vec<u8>, ApiError> {
-        self.fetch_as_bytes(STATION_PATH).map(|b| b.into())
+        self.fetch_as_bytes(STATION_PATH).map(std::convert::Into::into)
     }
 
     pub fn fetch_routes(&self) -> Result<Vec<u8>, ApiError> {
-        self.fetch_as_bytes(ROUTE_PATH).map(|b| b.into())
+        self.fetch_as_bytes(ROUTE_PATH).map(std::convert::Into::into)
     }
 
     fn fetch_as_bytes(&self, path: &str) -> Result<bytes::Bytes, ApiError> {

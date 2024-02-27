@@ -37,8 +37,8 @@ struct AppConfig {
 }
 fn main() {
     match dotenvy::from_path(SECRET_ENV_PATH) {
-        Ok(()) => println!("Loaded env from {}", SECRET_ENV_PATH),
-        Err(_) => println!("Skipped loading env from  {}", SECRET_ENV_PATH),
+        Ok(()) => println!("Loaded env from {SECRET_ENV_PATH}"),
+        Err(_) => println!("Skipped loading env from  {SECRET_ENV_PATH}"),
     }
 
     let cli_options = CliOptions::parse();

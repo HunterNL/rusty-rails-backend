@@ -30,7 +30,7 @@ impl NDovLoket {
             .map_err(Box::new)?
             .bytes()
             .map_err(NdovLoketError::Network)
-            .map(|b| b.into())
+            .map(std::convert::Into::into)
             .map_err(Box::new)?)
     }
 }

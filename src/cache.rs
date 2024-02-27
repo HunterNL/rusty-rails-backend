@@ -37,11 +37,7 @@ impl Cache {
 
         fs::create_dir_all(&base_dir).map_err(|e| e.to_string())?;
 
-        Ok(Self {
-            allow_overwrite,
-            base_dir,
-            client,
-        })
+        Ok(Self { client, allow_overwrite, base_dir })
     }
 
     pub fn ensure_present<S>(&self, source: S, output_path: &Path) -> Result<(), String>
@@ -78,7 +74,7 @@ pub fn update(config: AppConfig) -> Result<(), String> {
             ndovloket_api::NDovLoket::fetch_timetable,
             Path::new(TIMETABLE_PATH),
         )
-        .unwrap_or_else(|e| eprintln!("{}", e));
+        .unwrap_or_else(|e| eprintln!("{e}"));
 
     if config.ns_api_key.is_some() {
         let ns = ns_api::NsApi::new(config.ns_api_key.unwrap());
@@ -88,7 +84,7 @@ pub fn update(config: AppConfig) -> Result<(), String> {
                 || ns.fetch_routes().map_err(|e| Box::new(e) as Box<dyn Error>),
                 Path::new(ROUTE_FILEPATH),
             )
-            .unwrap_or_else(|e| eprintln!("{}", e));
+            .unwrap_or_else(|e| eprintln!("{e}"));
         cache
             .ensure_present(
                 || {
@@ -97,7 +93,7 @@ pub fn update(config: AppConfig) -> Result<(), String> {
                 },
                 Path::new(STATION_FILEPATH),
             )
-            .unwrap_or_else(|e| eprintln!("{}", e));
+            .unwrap_or_else(|e| eprintln!("{e}"));
     } else {
         println!("Skipping updating NS data, no key");
     }

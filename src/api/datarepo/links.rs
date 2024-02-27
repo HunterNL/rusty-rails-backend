@@ -168,7 +168,7 @@ struct Geometry {
     coordinates: Vec<Coords2D>,
 }
 
-/// A linear path formed of a series of PathPoints
+/// A linear path formed of a series of `PathPoints`
 #[derive(Debug, Serialize, Clone)]
 struct Path {
     pub points: Vec<PathPoint>,

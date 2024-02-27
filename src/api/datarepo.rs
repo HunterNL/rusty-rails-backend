@@ -63,7 +63,7 @@ impl LinkMap for HashMap<LinkCode, Link> {
         self.contains_key(code)
     }
 }
-/// Takes a Leg reference, if it is a moving leg: returns all the LinkCodes required to traverse this leg
+/// Takes a Leg reference, if it is a moving leg: returns all the `LinkCodes` required to traverse this leg
 fn leg_codes(leg: &LegKind) -> Option<Vec<LinkCode>> {
     match leg {
         LegKind::Stationary(_) => None,
