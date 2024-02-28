@@ -23,7 +23,7 @@ impl Iff {
         let timetable = Self::parse_timetable(archive)?;
         let validity = Self::parse_validity(archive)?;
 
-        Ok(Iff {
+        Ok(Self {
             timetable,
             validity,
         })

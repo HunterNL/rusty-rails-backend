@@ -19,7 +19,7 @@ use super::{
 
 /// Length of dates as they appear in the iff file
 const DATE_FORMAT_LEN: usize = "DDMMYYYY".len();
-/// Date format as required by NaiveDate::parse_from_str
+/// Date format as required by `NaiveDate::parse_from_str`
 const DATE_FORMAT: &str = "%d%m%Y";
 
 pub struct InvalidEncodingError {}

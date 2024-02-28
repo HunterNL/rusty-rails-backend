@@ -83,6 +83,6 @@ impl FromStr for DayOffset {
             .parse()
             .map_err(|_| ParseError::SubsliceParseFailed)?;
 
-        Ok(DayOffset::from_hour_minute(hours, minutes))
+        Ok(Self::from_hour_minute(hours, minutes))
     }
 }

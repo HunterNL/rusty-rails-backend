@@ -157,12 +157,7 @@ impl DataRepo {
 
         // println!("{:?}", stations);
 
-        Self {
-            iff,
-            links,
-            link_map,
-            stations,
-        }
+        Self { links, stations, link_map, iff }
     }
 
     pub fn rides_active_at_time(&self, time: &NaiveTime, date: &NaiveDate) -> Vec<Record> {
