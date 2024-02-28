@@ -1,9 +1,7 @@
 use chrono::NaiveDate;
-use serde::Serialize;
 use std::collections::HashMap;
 use std::fmt::Display;
 
-use std::{fs::File, io::Read};
 use winnow::ascii::{alphanumeric1, dec_uint, line_ending, multispace0, space0};
 use winnow::combinator::{alt, delimited, fail, opt, preceded, repeat, terminated};
 use winnow::stream::AsChar;
@@ -14,41 +12,15 @@ use winnow::{PResult, Parser};
 
 use crate::dayoffset::DayOffset;
 
-const TIMETABLE_FILE_NAME: &str = "timetbls.dat";
-const DATE_FORMAT_LEN: usize = "DDMMYYYY".len(); // Lenght of dates as they appear in the iff file
+use super::{
+    DayValidityFootnote, Footnote, Header, Leg, LegKind, PlatformInfo, Record, RideId,
+    RideValidity, StopKind, TimeTable, TimetableEntry,
+};
+
+/// Length of dates as they appear in the iff file
+const DATE_FORMAT_LEN: usize = "DDMMYYYY".len();
+/// Date format as required by NaiveDate::parse_from_str
 const DATE_FORMAT: &str = "%d%m%Y";
-
-pub struct Iff {}
-
-pub struct TimeTable {
-    pub header: Header,
-    pub rides: Vec<Record>,
-}
-
-pub struct RideValidity {
-    header: Header,
-    validities: HashMap<u64, Vec<bool>>,
-}
-
-impl RideValidity {
-    pub fn is_valid_on_day(&self, footnote_id: u64, date: NaiveDate) -> Result<bool, ()> {
-        if date < self.header.first_valid_date || date > self.header.last_valid_date {
-            return Err(()); // Out of validity range
-        }
-
-        // Might be off by one
-        let day_id = date
-            .signed_duration_since(self.header.first_valid_date)
-            .num_days() as u64;
-
-        // println!("Dayid: {}", day_id); //233
-
-        self.validities.get(&footnote_id).ok_or(()).map(|v| {
-            *v.get(day_id as usize)
-                .expect("to find footnote in validity lookup")
-        })
-    }
-}
 
 pub struct InvalidEncodingError {}
 
@@ -60,55 +32,6 @@ impl Display for InvalidEncodingError {
 
 fn seperator(input: &mut &str) -> PResult<()> {
     (multispace0, ',').void().parse_next(input)
-}
-
-fn read_file_from_archive(archive: &File, filename: &str) -> Result<String, String> {
-    let mut archive = zip::ZipArchive::new(archive).expect("valid new archive");
-    let mut file = archive
-        .by_name(filename)
-        .map_err(|_| "Error getting file from archive")?;
-
-    let mut buf = vec![];
-
-    file.read_to_end(&mut buf).map_err(|e| e.to_string())?;
-
-    // File should be ISO 8859-1 / Latin1, this should work fine
-    let str_content =
-        std::str::from_utf8(buf.as_slice()).map_err(|_| "file contained invalid utf-8")?;
-
-    Ok(str_content.to_owned())
-}
-
-impl Iff {
-    pub fn timetable(archive: &File) -> Result<TimeTable, String> {
-        let content = read_file_from_archive(archive, TIMETABLE_FILE_NAME)?;
-
-        parse_timetable_file
-            .parse(&content)
-            .map_err(|o| o.to_string())
-    }
-
-    pub fn validity(archive: &File) -> Result<RideValidity, String> {
-        let content = read_file_from_archive(archive, "footnote.dat")?;
-
-        parse_footnote_file
-            .parse(&content)
-            .map_err(|o| o.to_string())
-    }
-}
-
-#[derive(PartialEq, Eq, Debug)]
-pub struct Header {
-    pub company_id: u64,
-    pub first_valid_date: chrono::NaiveDate,
-    pub last_valid_date: chrono::NaiveDate,
-    pub version: u64,
-    pub description: String,
-}
-
-struct DayValidityFootnote {
-    id: u64,
-    validity: Vec<bool>,
 }
 
 fn parse_single_day(input: &mut &str) -> PResult<bool> {
@@ -130,7 +53,7 @@ fn parse_footnote_record(input: &mut &str) -> PResult<DayValidityFootnote> {
         .parse_next(input)
 }
 
-fn parse_footnote_file(input: &mut &str) -> PResult<RideValidity> {
+pub fn parse_footnote_file(input: &mut &str) -> PResult<RideValidity> {
     (parse_header, repeat(0.., parse_footnote_record))
         .map(|seq: (Header, Vec<DayValidityFootnote>)| RideValidity {
             header: seq.0,
@@ -143,7 +66,7 @@ fn parse_footnote_file(input: &mut &str) -> PResult<RideValidity> {
         .parse_next(input)
 }
 
-fn parse_timetable_file(input: &mut &str) -> PResult<TimeTable> {
+pub fn parse_timetable_file(input: &mut &str) -> PResult<TimeTable> {
     (parse_header, repeat(0.., parse_record))
         .parse_next(input)
         .map(|seq| TimeTable {
@@ -180,13 +103,6 @@ fn parse_header(input: &mut &str) -> PResult<Header> {
         version: res.6,
         description: res.8.to_owned(),
     })
-}
-
-#[derive(Debug, PartialEq, Eq, Clone, Serialize)]
-pub struct PlatformInfo {
-    arrival_platform: Option<String>,
-    departure_platform: Option<String>,
-    footnote: u64,
 }
 
 // ?13 ,13 ,00003
@@ -276,77 +192,6 @@ mod header_tests {
             }
         );
     }
-}
-
-#[derive(PartialEq, Debug, Eq, Clone, Serialize)]
-pub struct TimetableEntry {
-    pub code: String,
-    pub stop_kind: StopKind,
-}
-
-#[derive(PartialEq, Debug, Eq, Clone, Serialize)]
-pub enum StopKind {
-    Departure(Option<PlatformInfo>, DayOffset),
-    Arrival(Option<PlatformInfo>, DayOffset),
-    Waypoint,
-    StopShort(Option<PlatformInfo>, DayOffset),
-    StopLong(Option<PlatformInfo>, DayOffset, DayOffset),
-}
-
-impl StopKind {
-    pub fn departure_time(&self) -> Option<&DayOffset> {
-        match self {
-            Self::Departure(_, departure_time) => Some(departure_time),
-            Self::Arrival(_, _) | Self::Waypoint => None,
-            Self::StopShort(_, time) => Some(time),
-            Self::StopLong(_, _, departure_time) => Some(departure_time),
-        }
-    }
-
-    pub fn arrival_time(&self) -> Option<&DayOffset> {
-        match self {
-            Self::Departure(_, _) => None,
-            Self::Arrival(_, arrival_time) => Some(arrival_time),
-            Self::Waypoint => None,
-            Self::StopShort(_, time) => Some(time),
-            Self::StopLong(_, arrival_time, _) => Some(arrival_time),
-        }
-    }
-
-    pub fn is_waypoint(&self) -> bool {
-        self == &Self::Waypoint
-    }
-}
-
-#[derive(PartialEq, Debug, Eq, Clone, Serialize)]
-pub struct Record {
-    pub id: u64,
-    pub timetable: Vec<TimetableEntry>,
-    pub ride_id: Vec<RideId>,
-    pub day_validity_footnote: Footnote,
-}
-
-#[derive(PartialEq, Debug, Eq, Clone, Serialize)]
-pub struct Footnote {
-    pub footnote: u64,
-    pub first_stop: u64,
-    pub last_stop: u64,
-}
-
-#[derive(Serialize)]
-pub enum LegKind {
-    Stationary(String, StopKind),
-    Moving(String, String, Vec<String>),
-}
-
-impl LegKind {}
-
-#[derive(Serialize)]
-pub struct Leg {
-    start: DayOffset,
-    end: DayOffset,
-    #[serde(flatten)]
-    pub kind: LegKind,
 }
 
 fn leg_for_stop(entry: &TimetableEntry) -> Leg {
@@ -535,16 +380,6 @@ fn parse_arrival(input: &mut &str) -> PResult<TimetableEntry> {
         })
 }
 
-#[derive(PartialEq, Debug, Eq, Clone, Serialize)]
-pub struct RideId {
-    company_id: u32,
-    ride_id: u32,
-    line_id: Option<u32>,
-    first_stop: u32,
-    last_stop: u32,
-    ride_name: Option<String>,
-}
-
 fn empty_str_to_none(a: &str) -> Option<&str> {
     if a.is_empty() {
         None
@@ -646,7 +481,10 @@ mod test_record {
 
     use crate::{
         dayoffset::DayOffset,
-        iff::parsing::{Footnote, PlatformInfo, RideId, StopKind, TimetableEntry},
+        iff::{
+            parsing::{Footnote, RideId, TimetableEntry},
+            PlatformInfo, StopKind,
+        },
     };
 
     use super::parse_record;

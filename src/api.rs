@@ -13,7 +13,7 @@ use poem::{
 };
 use serde::{ser::SerializeStruct, Serialize};
 
-use crate::{iff::parsing::Record, AppConfig};
+use crate::{iff::Record, AppConfig};
 
 use self::datarepo::DataRepo;
 

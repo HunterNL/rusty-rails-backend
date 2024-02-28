@@ -11,10 +11,7 @@ mod stations;
 use crate::{
     api::datarepo::{links::extract_links, stations::extract_stations},
     dayoffset::DayOffset,
-    iff::{
-        self,
-        parsing::{Leg, LegKind, Record},
-    },
+    iff::{Iff, Leg, LegKind, Record},
 };
 
 use self::{links::Link, stations::Station};
@@ -23,9 +20,9 @@ use self::{links::Link, stations::Station};
 pub struct DataRepo {
     links: Vec<Link>,
     stations: Vec<stations::Station>,
-    rides: Vec<Record>,
+    // rides: Vec<Record>,
     link_map: HashMap<LinkCode, Link>,
-    validity: iff::parsing::RideValidity,
+    iff: Iff,
 }
 
 /// Key to identify links, looking up links with the waypoint identifiers the wrong way around should return a corrected Link
@@ -85,8 +82,8 @@ fn leg_has_complete_data(
     links: &HashMap<LinkCode, Link>,
 ) -> bool {
     match &leg.kind {
-        iff::parsing::LegKind::Stationary(code, _) => station_codes.contains(code),
-        iff::parsing::LegKind::Moving(_from, _to, _waypoints) => leg_codes(&leg.kind)
+        LegKind::Stationary(code, _) => station_codes.contains(code),
+        LegKind::Moving(_from, _to, _waypoints) => leg_codes(&leg.kind)
             .iter()
             .all(|leg_code| leg_code.iter().all(|code| links.contains_undirected(code))),
     }
@@ -107,26 +104,13 @@ impl DataRepo {
     pub fn new(cache_dir: &std::path::Path) -> Self {
         let iff_file = File::open(cache_dir.join("remote").join("ns-latest.zip"))
             .expect("To find timetable file");
+
+        let mut iff = Iff::new_from_archive(&iff_file).expect("valid iff parse");
+
         let route_file =
             File::open(cache_dir.join("remote").join("route.json")).expect("To find route file");
         let stations_file = File::open(cache_dir.join("remote").join("stations.json"))
             .expect("To find stations file");
-
-        let timetable = iff::parsing::Iff::timetable(&iff_file);
-        let validity = iff::parsing::Iff::validity(&iff_file);
-
-        if timetable.is_err() {
-            eprint!("{}", timetable.err().unwrap());
-            panic!("Error parsing timetable");
-        }
-
-        if validity.is_err() {
-            eprint!("{}", validity.err().unwrap());
-            panic!("Error parsing validity");
-        }
-
-        let mut timetable = timetable.unwrap();
-        let validity = validity.unwrap();
 
         let links: Vec<Link> = extract_links(&route_file);
         let link_map: HashMap<LinkCode, Link> = links
@@ -137,24 +121,26 @@ impl DataRepo {
 
         let station_codes: HashSet<String> = stations.iter().map(|s| s.code.clone()).collect();
 
-        let duration = timetable
+        let duration = iff
+            .timetable()
             .header
             .last_valid_date
-            .signed_duration_since(timetable.header.first_valid_date);
+            .signed_duration_since(iff.timetable().header.first_valid_date);
 
         println!(
             "Timetable start date: {}",
-            timetable.header.first_valid_date
+            iff.timetable().header.first_valid_date
         );
-        println!("Timetable end date: {}", timetable.header.last_valid_date);
+        println!(
+            "Timetable end date: {}",
+            iff.timetable().header.last_valid_date
+        );
         println!("Day count: {}", duration.num_days());
 
         // TODO Drop this check and deal with skipping waypoints throughout the app, or deal with translating stations from the iff into coordinates
-        //
         // This filters out timetable entries that contain stops that we don't have data on, mostly (entirely?) international trains
-
-        println!("Pre data filter ride #: {}", timetable.rides.len());
-        timetable
+        println!("Pre data filter ride #: {}", iff.timetable().rides.len());
+        iff.timetable_mut()
             .rides
             .retain(|ride| has_complete_data(ride, &station_codes, &link_map));
 
@@ -167,16 +153,15 @@ impl DataRepo {
         //     })
         // })
 
-        println!("Post data filter ride #: {}", timetable.rides.len());
+        println!("Post data filter ride #: {}", iff.timetable().rides.len());
 
         // println!("{:?}", stations);
 
         Self {
+            iff,
             links,
             link_map,
             stations,
-            rides: timetable.rides,
-            validity,
         }
     }
 
@@ -184,12 +169,15 @@ impl DataRepo {
         let time = DayOffset::from_naivetime(time);
 
         println!("{time:?}");
-        println!("{}", self.rides.len());
-        self.rides
+        println!("{}", self.iff.timetable().rides.len());
+        self.iff
+            .timetable()
+            .rides
             .iter()
             .filter(|r| r.start_time() < time && r.end_time() > time)
             .filter(|r| {
-                self.validity
+                self.iff
+                    .validity()
                     .is_valid_on_day(r.day_validity_footnote.footnote, *date)
                     .unwrap()
             })
