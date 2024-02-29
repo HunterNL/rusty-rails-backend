@@ -6,11 +6,7 @@ use std::{
     time::Duration,
 };
 
-use crate::{
-    ndovloket_api,
-    ns_api::{self},
-    AppConfig,
-};
+use crate::{ndovloket_api, ns_api, AppConfig};
 
 const TIMETABLE_PATH: &str = "ns-latest.zip";
 const STATION_FILEPATH: &str = "stations.json";
@@ -37,7 +33,11 @@ impl Cache {
 
         fs::create_dir_all(&base_dir).map_err(|e| e.to_string())?;
 
-        Ok(Self { client, allow_overwrite, base_dir })
+        Ok(Self {
+            client,
+            allow_overwrite,
+            base_dir,
+        })
     }
 
     pub fn ensure_present<S>(&self, source: S, output_path: &Path) -> Result<(), String>

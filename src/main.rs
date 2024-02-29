@@ -1,5 +1,6 @@
 mod api;
 mod cache;
+mod cli;
 mod dayoffset;
 mod iff;
 mod ndovloket_api;
@@ -7,42 +8,21 @@ mod ns_api;
 
 use std::path::PathBuf;
 
-use clap::{Parser, Subcommand};
-
 static SECRET_ENV_PATH: &str = "./config/secrets.env";
 
-#[derive(Parser)]
-struct CliOptions {
-    #[arg(short,long,default_value_t=String::from("./cache"),global=true)]
-    cache_dir: String,
-
-    #[command(subcommand)]
-    command: SubCommand,
-
-    #[arg(short, long)]
-    allow_cache_overwrite: bool,
-    // #[arg(long = "ssl")]
-    // use_ssl: bool,
+pub struct AppConfig {
+    pub ns_api_key: Option<String>,
+    pub cache_dir: PathBuf,
+    pub allow_cache_overwrite: bool,
 }
 
-#[derive(Subcommand)]
-enum SubCommand {
-    Fetch,
-    Serve,
-}
-
-struct AppConfig {
-    ns_api_key: Option<String>,
-    cache_dir: PathBuf,
-    allow_cache_overwrite: bool,
-}
 fn main() {
     match dotenvy::from_path(SECRET_ENV_PATH) {
         Ok(()) => println!("Loaded env from {SECRET_ENV_PATH}"),
         Err(_) => println!("Skipped loading env from  {SECRET_ENV_PATH}"),
     }
 
-    let cli_options = CliOptions::parse();
+    let cli_options = cli::get_cli_args();
     let ns_key = std::env::var("NS_API_KEY");
     let cache_dir: PathBuf = cli_options.cache_dir.into();
 
@@ -53,8 +33,8 @@ fn main() {
     };
 
     let res: Result<(), String> = match cli_options.command {
-        SubCommand::Fetch => cache::update(config),
-        SubCommand::Serve => api::serve(config),
+        cli::SubCommand::Fetch => cache::update(config),
+        cli::SubCommand::Serve => api::serve(config),
     };
 
     match res {
