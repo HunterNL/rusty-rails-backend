@@ -13,7 +13,10 @@ use poem::{
 };
 use serde::{ser::SerializeStruct, Serialize};
 
-use crate::{iff::Record, AppConfig};
+use crate::{
+    iff::{Leg, LegKind, Record, StopKind},
+    AppConfig,
+};
 
 use self::datarepo::DataRepo;
 
@@ -26,19 +29,63 @@ pub trait IntoAPIObject {
 }
 
 impl IntoAPIObject for Record {}
+impl IntoAPIObject for Leg {}
+
+fn stopkind_to_num(stop_kind: &StopKind) -> u8 {
+    match stop_kind {
+        StopKind::Waypoint => 1,
+        StopKind::StopShort(_, _) => 2,
+        StopKind::StopLong(_, _, _) => 3,
+        StopKind::Departure(_, _) => 4,
+        StopKind::Arrival(_, _) => 5,
+    }
+}
+
+impl<'a> Serialize for ApiObject<'a, Leg> {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        let mut leg = serializer.serialize_struct("leg", 9)?;
+        leg.serialize_field("timeStart", &self.0.start)?;
+        leg.serialize_field("timeEnd", &self.0.end)?;
+        leg.serialize_field("moving", &self.0.kind.is_moving())?;
+        leg.serialize_field("waypoints", &self.0.kind.waypoints())?;
+        leg.serialize_field("from", &self.0.kind.from())?;
+        leg.serialize_field("to", &self.0.kind.to())?;
+        leg.serialize_field("stationCode", &self.0.kind.station_code())?;
+        leg.serialize_field("platform", &self.0.kind.platform_info())?;
+
+        let stoptype = match &self.0.kind {
+            LegKind::Stationary(_, stop_kind) => Some(stopkind_to_num(stop_kind)),
+            LegKind::Moving(_, _, _) => None,
+        };
+        leg.serialize_field("stopType", &stoptype)?;
+
+        leg.end()
+    }
+}
 
 impl<'a> Serialize for ApiObject<'a, Record> {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: serde::Serializer,
     {
-        let mut ride = serializer.serialize_struct("ride", 10)?;
+        let mut ride = serializer.serialize_struct("ride", 6)?;
         ride.serialize_field("id", &self.0.id)?;
         ride.serialize_field("startTime", &self.0.start_time())?;
         ride.serialize_field("endTime", &self.0.end_time())?;
         ride.serialize_field("distance", &0)?;
         ride.serialize_field("dayValidity", &0)?;
-        ride.serialize_field("legs", &self.0.generate_legs())?;
+        ride.serialize_field(
+            "legs",
+            &self
+                .0
+                .generate_legs()
+                .iter()
+                .map(|l| l.as_api_object())
+                .collect::<Vec<_>>(),
+        )?;
         ride.end()
     }
 }
