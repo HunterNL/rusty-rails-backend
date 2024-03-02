@@ -72,6 +72,22 @@
 				"$rustc"
 			],
 			"label": "rust: cargo clippy fix"
+		},
+		{
+			"label": "SSL Proxy",
+			"type": "shell",
+			"command": "caddy run",
+			"problemMatcher": []
+		},
+		{
+			
+			"type": "cargo",
+			"command": "run",
+			"args": ["serve"],
+			"problemMatcher": [
+				"$rustc"
+			],
+			"label": "Run backend"
 		}
 	]
 }

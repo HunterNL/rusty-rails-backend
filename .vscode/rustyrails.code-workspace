@@ -1,0 +1,38 @@
+{
+	"folders": [
+		{
+			"path": "..",
+			"name": "Backend"
+		},
+		{
+			"path": "../../trainmap_frontend",
+			"name": "Frontend"
+		}
+	],
+	"settings": {
+		"rust-analyzer.check.command": "clippy",
+		"debug.allowBreakpointsEverywhere": true,
+		"rust-analyzer.runnables.extraEnv": {
+			"CHRONO_TZ_TIMEZONE_FILTER": "(Europe/Amsterdam)|UTC"
+		},
+		"rust-analyzer.cargo.extraEnv": {
+			"CHRONO_TZ_TIMEZONE_FILTER": "(Europe/Amsterdam)|UTC"
+		},
+		"search.exclude": {
+			"**/node_modules": true,
+			"**/bower_components": true,
+			"**/*.code-search": true
+		}
+		
+	},
+	"tasks": {
+		"version": "2.0.0",
+		"tasks": [
+			{
+				"label": "Run all",
+				"dependsOn":["Run Backend","SSL Proxy","NPM: Serve"], // VSCode doesn't see tasks from other workspace folders :(
+			}
+		]
+	}
+
+}

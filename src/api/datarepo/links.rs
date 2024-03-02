@@ -35,15 +35,18 @@ pub fn extract_links(file: &File) -> Vec<Link> {
 
 #[derive(Deserialize, Serialize, Debug, Clone, Copy, PartialEq)]
 pub struct Coords2D {
-    lon: f64,
-    lat: f64,
+    longitude: f64, // Do not change the order, matters for Deserialize as it's parsing an array of 2 numbers into this struct
+    latitude: f64,
 }
 
 impl Eq for Coords2D {}
 
 impl Coords2D {
-    pub fn new(lon: f64, lat: f64) -> Self {
-        Self { lon, lat }
+    pub fn new(longitude: f64, latitude: f64) -> Self {
+        Self {
+            longitude,
+            latitude,
+        }
     }
 }
 
@@ -88,10 +91,10 @@ fn great_circle_distance(coords1: &Coords2D, coords2: &Coords2D) -> f64 {
     let radius: f64 = 6371f64; // km
     let p: f64 = std::f64::consts::PI / 180f64;
 
-    let a = 0.5f64 - ((coords2.lat - coords1.lat) * p).cos() / 2f64
-        + (coords1.lat * p).cos()
-            * (coords2.lat * p).cos()
-            * (1f64 - ((coords2.lon - coords1.lon) * p).cos())
+    let a = 0.5f64 - ((coords2.latitude - coords1.latitude) * p).cos() / 2f64
+        + (coords1.latitude * p).cos()
+            * (coords2.latitude * p).cos()
+            * (1f64 - ((coords2.longitude - coords1.longitude) * p).cos())
             / 2f64;
 
     2f64 * radius * a.sqrt().asin()
