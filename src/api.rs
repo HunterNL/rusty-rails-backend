@@ -71,12 +71,13 @@ impl<'a> Serialize for ApiObject<'a, Record> {
     where
         S: serde::Serializer,
     {
-        let mut ride = serializer.serialize_struct("ride", 6)?;
+        let mut ride = serializer.serialize_struct("ride", 7)?;
         ride.serialize_field("id", &self.0.id)?;
         ride.serialize_field("startTime", &self.0.start_time())?;
         ride.serialize_field("endTime", &self.0.end_time())?;
         ride.serialize_field("distance", &0)?;
         ride.serialize_field("dayValidity", &0)?;
+        ride.serialize_field("rideIds", &self.0.ride_id)?;
         ride.serialize_field(
             "legs",
             &self

@@ -7,7 +7,7 @@ use winnow::combinator::{alt, delimited, fail, opt, preceded, repeat, terminated
 use winnow::stream::AsChar;
 use winnow::trace::trace;
 
-use winnow::token::{one_of, take, take_till, take_while};
+use winnow::token::{one_of, take, take_till, take_until0, take_while};
 use winnow::{PResult, Parser};
 
 use crate::dayoffset::DayOffset;
@@ -21,6 +21,8 @@ use super::{
 const DATE_FORMAT_LEN: usize = "DDMMYYYY".len();
 /// Date format as required by `NaiveDate::parse_from_str`
 const DATE_FORMAT: &str = "%d%m%Y";
+
+const IFF_NEWLINE: &str = "\r\n";
 
 pub struct InvalidEncodingError {}
 
@@ -403,8 +405,8 @@ fn parse_ride_id(input: &mut &str) -> PResult<RideId> {
         ',',
         dec_uint,
         ',',
-        take_till(0.., |a: char| a.is_newline()),
-        line_ending,
+        take_until0(IFF_NEWLINE),
+        IFF_NEWLINE,
     )
         .map(|seq| RideId {
             company_id: seq.1,
@@ -412,7 +414,7 @@ fn parse_ride_id(input: &mut &str) -> PResult<RideId> {
             line_id: seq.5,
             first_stop: seq.8,
             last_stop: seq.10,
-            ride_name: empty_str_to_none(seq.12).map(std::borrow::ToOwned::to_owned),
+            ride_name: empty_str_to_none(str::trim(seq.12)).map(std::borrow::ToOwned::to_owned),
         })
         .parse_next(input)
 }
@@ -423,7 +425,7 @@ mod test_rideid_parse {
 
     #[test]
     fn plain() {
-        let input = "%100,02871, ,001,004,\n";
+        let input = "%100,02871, ,001,004,                               \r\n";
         let expected = RideId {
             company_id: 100,
             first_stop: 1,
