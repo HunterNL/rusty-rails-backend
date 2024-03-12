@@ -1,4 +1,5 @@
 use chrono::NaiveDate;
+use serde::Serialize;
 use std::collections::HashMap;
 use std::fmt::Display;
 
@@ -382,6 +383,32 @@ fn parse_arrival(input: &mut &str) -> PResult<TimetableEntry> {
         })
 }
 
+#[derive(PartialEq, Debug, Serialize, Eq, Clone)]
+pub struct TransitMode {
+    mode: String,
+    first_stop: i32,
+    last_stop: i32,
+}
+
+//&IC ,001,005
+fn parse_transit_mode(input: &mut &str) -> PResult<TransitMode> {
+    (
+        "&",
+        take_until0(","),
+        ",",
+        dec_uint,
+        ",",
+        dec_uint,
+        IFF_NEWLINE,
+    )
+        .parse_next(input)
+        .map(|seq| TransitMode {
+            mode: seq.1.trim().to_owned(),
+            first_stop: seq.3,
+            last_stop: seq.5,
+        })
+}
+
 fn empty_str_to_none(a: &str) -> Option<&str> {
     if a.is_empty() {
         None
@@ -457,21 +484,26 @@ fn parse_record(input: &mut &str) -> PResult<Record> {
             line_ending,
             repeat(0.., parse_ride_id),
             parse_day_footnote,
+            take_till(0.., '&').void(),
+            parse_transit_mode,
             take_till(1.., '>').void(),
             parse_departure,
             repeat(1.., any_entry),
         ),
     )
-    .map(|seq: (_, _, _, _, _, _, Vec<TimetableEntry>)| {
-        let mut v = vec![seq.5];
-        v.extend(seq.6);
-        Record {
-            id: seq.0,
-            timetable: v,
-            ride_id: seq.2,
-            day_validity_footnote: seq.3,
-        }
-    })
+    .map(
+        |seq: (_, _, _, _, _, TransitMode, _, _, Vec<TimetableEntry>)| {
+            let mut v = vec![seq.7];
+            v.extend(seq.8);
+            Record {
+                id: seq.0,
+                timetable: v,
+                ride_id: seq.2,
+                day_validity_footnote: seq.3,
+                transit_types: vec![seq.5],
+            }
+        },
+    )
     .parse_next(input)
 }
 
@@ -484,7 +516,7 @@ mod test_record {
     use crate::{
         dayoffset::DayOffset,
         iff::{
-            parsing::{Footnote, RideId, TimetableEntry},
+            parsing::{Footnote, RideId, TimetableEntry, TransitMode},
             PlatformInfo, StopKind,
         },
     };
@@ -493,38 +525,21 @@ mod test_record {
 
     #[test]
     fn test_record_parse() {
-        let mut input = "#00000002
-%100,02871, ,001,004,
-%100,01771, ,004,005,
--00003,000,999
-&IC ,001,005
-*FINI,001,004,00000
-*FINI,004,005,00000
->rtd ,1850
-?13 ,13 ,00003
-;rtn
-.rta ,1858
-?1 ,1 ,00003
-;cps
-;nwk
-+gd ,1908,1909
-?3 ,3 ,00003
-;gdg
-;wd
-;vtn
-;utt
-;utlr
-+ut ,1928,1936a
-?11 ,11 ,00003
-;uto
-;bhv
-;dld
-<amf ,1950
-?2 ,2 ,00003";
+        let mut input = include_str!("./testdata/record1");
+        // dbg!(input);
 
         let record = super::parse_record.parse_next(&mut input).unwrap();
 
         assert_eq!(record.id, 2);
+
+        assert_eq!(
+            record.transit_types.first().unwrap(),
+            &TransitMode {
+                mode: "IC".to_owned(),
+                first_stop: 1,
+                last_stop: 5
+            }
+        );
 
         assert_eq!(
             record.day_validity_footnote,
@@ -575,54 +590,7 @@ mod test_record {
 
     #[test]
     fn record_parse_2() -> Result<(), String> {
-        let input = "#00001283
-%200,09316,      ,001,005,                              
-%200,09916,      ,005,007,                              
--00081,000,999
-&EST ,001,007
-*BAR ,001,005,00000
-*FINI,001,005,00000
-*RESV,001,005,00000
-*ROL ,001,005,00000
-*SPEC,001,005,00000
-*BAR ,005,007,00000
-*FINI,005,007,00000
-*RESV,005,007,00000
-*ROL ,005,007,00000
-*SPEC,005,007,00000
-*NUIT,002,003,00000
->asd    ,0715
-?14   ,14   ,00081
-;ass    
-;asdl   
-+shl    ,0730,0732
-?1-2  ,1-2  ,00081
-;hfd    
-+rtd    ,0754,0758
-?2    ,2    ,00081
-;rtb    
-;rtz    
-;rtst   
-;rlb    
-;ndkp   
-;atwlb  
-+atw    ,0830,0833
-;berch  
-;gmd    
-;gmog   
-;mho    
-;fki    
-;fdp    
-;fwa    
-;lnk    
-;mech   
-;fbnl   
-;brusn  
-;brusc  
-+brusz  ,0908,0920
-+acdg   ,1033,1038
-?1    ,1    ,00081
-<marne  ,1048";
+        let input = include_str!("./testdata/record2");
 
         parse_record.parse(input).map_err(|e| e.to_string())?;
 
@@ -631,62 +599,7 @@ mod test_record {
 
     #[test]
     fn test_parse_3() -> Result<(), String> {
-        let input = "#00002871
-%200,00140,      ,001,014,                              
--00187,000,999
-&IC  ,001,014
-*RESA,001,014,00459
-*RESV,001,014,00460
-*FIVE,001,014,00000
-*NUIT,002,003,00460
-*NIIN,012,013,00000
->bhf    ,1554
-+berhbl ,1603,1607
-+bspd   ,1624,1626
-;lrw    
-;ls     
-;hwob   
-+hann   ,1753,1756
-;minden 
-;oeynh  
-+buende ,1841,1843
-?     ,     ,00187
-+osnh   ,1904,1906
-+rheine ,1933,1936
-?     ,     ,00187
-+bh     ,1948,1951
-;odz    
-;hglo   
-+hgl    ,2007,2009
-?2    ,2    ,00187
-;bn     
-;amri   
-;aml    
-;wdn    
-;rsn    
-;hon    
-;dvc    
-+dv     ,2041,2045
-?3    ,3    ,00187
-;twl    
-;apdo   
-+apd    ,2057,2059
-?1    ,1    ,00187
-;hvl    
-+amf    ,2124,2126
-?7    ,7    ,00187
-;brn    
-+hvs    ,2138,2139
-?5    ,5    ,00187
-;hvsm   
-;bsmz   
-;ndb    
-;wp     
-;dmn    
-;assp   
-;asdm   
-<asd    ,2200
-?15a  ,15a  ,00187";
+        let input = include_str!("./testdata/record3");
 
         parse_record.parse(input).map_err(|e| e.to_string())?;
 

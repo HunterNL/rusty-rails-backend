@@ -6,7 +6,7 @@ use winnow::Parser;
 
 use crate::dayoffset::DayOffset;
 
-use self::parsing::{parse_footnote_file, parse_timetable_file};
+use self::parsing::{parse_footnote_file, parse_timetable_file, TransitMode};
 
 mod parsing;
 
@@ -180,6 +180,7 @@ pub struct Record {
     pub timetable: Vec<TimetableEntry>,
     pub ride_id: Vec<RideId>,
     pub day_validity_footnote: Footnote,
+    pub transit_types: Vec<TransitMode>,
 }
 
 #[derive(PartialEq, Debug, Eq, Clone, Serialize)]
