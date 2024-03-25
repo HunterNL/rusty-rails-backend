@@ -66,17 +66,17 @@ impl PartialEq for Link {
 }
 
 impl Link {
-    fn from(&self) -> &str {
-        &self.from
-    }
+    // fn from(&self) -> &str {
+    //     &self.from
+    // }
 
-    fn to(&self) -> &str {
-        &self.to
-    }
+    // fn to(&self) -> &str {
+    //     &self.to
+    // }
 
-    fn path(&self) -> &Path {
-        &self.path
-    }
+    // fn path(&self) -> &Path {
+    //     &self.path
+    // }
 
     pub fn link_code(&self) -> LinkCode {
         LinkCode(self.from.clone(), self.to.clone())
@@ -115,27 +115,27 @@ fn great_circle_distance(coords1: &Coords2D, coords2: &Coords2D) -> f64 {
 //     a.sqrt().asin() * EARTH_RADIUS // 2 * R; R = 6371 km
 // }
 
-fn path_length_m(path: &[Coords2D]) -> f64 {
-    path.windows(2).fold(0f64, |acc, cur| {
-        acc + great_circle_distance(&cur[0], &cur[1])
-    })
-}
+// fn path_length_m(path: &[Coords2D]) -> f64 {
+//     path.windows(2).fold(0f64, |acc, cur| {
+//         acc + great_circle_distance(&cur[0], &cur[1])
+//     })
+// }
 
-fn path_waypoints(path: &[Coords2D]) -> Vec<f64> {
-    path.windows(2)
-        .scan(0f64, |state, cur| {
-            let out = Some(*state);
+// fn path_waypoints(path: &[Coords2D]) -> Vec<f64> {
+//     path.windows(2)
+//         .scan(0f64, |state, cur| {
+//             let out = Some(*state);
 
-            *state += great_circle_distance(&cur[0], &cur[1]);
+//             *state += great_circle_distance(&cur[0], &cur[1]);
 
-            out
-        })
-        .collect()
+//             out
+//         })
+//         .collect()
 
-    // path.windows(2).for_each(|(left,right)| {
+//     // path.windows(2).for_each(|(left,right)| {
 
-    // })
-}
+//     // })
+// }
 
 /// A point on a Path
 #[derive(Debug, Serialize, Clone)]
@@ -234,7 +234,7 @@ impl Path {
         Self { len: sum, points }
     }
 
-    pub fn len(&self) -> f64 {
-        self.len
-    }
+    // pub fn len(&self) -> f64 {
+    //     self.len
+    // }
 }

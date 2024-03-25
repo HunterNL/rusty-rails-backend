@@ -12,12 +12,6 @@
 	"settings": {
 		"rust-analyzer.check.command": "clippy",
 		"debug.allowBreakpointsEverywhere": true,
-		"rust-analyzer.runnables.extraEnv": {
-			"CHRONO_TZ_TIMEZONE_FILTER": "(Europe/Amsterdam)|UTC"
-		},
-		"rust-analyzer.cargo.extraEnv": {
-			"CHRONO_TZ_TIMEZONE_FILTER": "(Europe/Amsterdam)|UTC"
-		},
 		"search.exclude": {
 			"**/node_modules": true,
 			"**/bower_components": true,

@@ -21,7 +21,7 @@ pub struct DataRepo {
     links: Vec<Link>,
     stations: Vec<stations::Station>,
     // rides: Vec<Record>,
-    link_map: HashMap<LinkCode, Link>,
+    // link_map: HashMap<LinkCode, Link>,
     iff: Iff,
 }
 
@@ -105,7 +105,9 @@ impl DataRepo {
         let iff_file = File::open(cache_dir.join("remote").join("ns-latest.zip"))
             .expect("To find timetable file");
 
-        let mut iff = Iff::new_from_archive(&iff_file).expect("valid iff parse");
+        let mut iff = Iff::new_from_archive(&iff_file)
+            .map_err(|e| println!("{e}"))
+            .expect("valid parse");
 
         let route_file =
             File::open(cache_dir.join("remote").join("route.json")).expect("To find route file");
@@ -160,7 +162,7 @@ impl DataRepo {
         Self {
             links,
             stations,
-            link_map,
+            // link_map,
             iff,
         }
     }

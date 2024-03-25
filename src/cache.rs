@@ -3,7 +3,7 @@ use std::{
     fs::{self, File},
     io::Write,
     path::{Path, PathBuf},
-    time::Duration,
+    // time::Duration,
 };
 
 use crate::{ndovloket_api, ns_api, AppConfig};
@@ -13,7 +13,7 @@ const STATION_FILEPATH: &str = "stations.json";
 const ROUTE_FILEPATH: &str = "route.json";
 
 pub struct Cache {
-    client: reqwest::blocking::Client,
+    // client: reqwest::blocking::Client,
     allow_overwrite: bool,
     base_dir: PathBuf,
 }
@@ -22,19 +22,19 @@ impl Cache {
     pub fn new(
         allow_overwrite: bool,
         base_dir: PathBuf,
-        client: Option<reqwest::blocking::Client>,
+        _client: Option<reqwest::blocking::Client>,
     ) -> Result<Self, String> {
-        let client = client.unwrap_or_else(|| {
-            reqwest::blocking::Client::builder()
-                .connect_timeout(Duration::from_secs(30))
-                .build()
-                .expect("client") // TODO Bubble up this error
-        });
+        // let client = client.unwrap_or_else(|| {
+        //     reqwest::blocking::Client::builder()
+        //         .connect_timeout(Duration::from_secs(30))
+        //         .build()
+        //         .expect("client") // TODO Bubble up this error
+        // });
 
         fs::create_dir_all(&base_dir).map_err(|e| e.to_string())?;
 
         Ok(Self {
-            client,
+            // client,
             allow_overwrite,
             base_dir,
         })

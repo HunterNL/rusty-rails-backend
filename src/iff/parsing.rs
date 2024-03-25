@@ -486,7 +486,7 @@ fn parse_record(input: &mut &str) -> PResult<Record> {
             parse_day_footnote,
             take_till(0.., '&').void(),
             parse_transit_mode,
-            take_till(1.., '>').void(),
+            take_till(0.., '>').void(),
             parse_departure,
             repeat(1.., any_entry),
         ),
@@ -511,6 +511,7 @@ fn parse_record(input: &mut &str) -> PResult<Record> {
 mod test_record {
     use pretty_assertions::assert_eq;
 
+    use testresult::TestResult;
     use winnow::Parser;
 
     use crate::{
@@ -524,11 +525,10 @@ mod test_record {
     use super::parse_record;
 
     #[test]
-    fn test_record_parse() {
-        let mut input = include_str!("./testdata/record1");
-        // dbg!(input);
-
-        let record = super::parse_record.parse_next(&mut input).unwrap();
+    fn test_record_parse() -> TestResult {
+        let record = parse_record
+            .parse(include_str!("./testdata/record1"))
+            .unwrap();
 
         assert_eq!(record.id, 2);
 
@@ -586,6 +586,7 @@ mod test_record {
                 )
             }
         );
+        Ok(())
     }
 
     #[test]
@@ -600,6 +601,16 @@ mod test_record {
     #[test]
     fn test_parse_3() -> Result<(), String> {
         let input = include_str!("./testdata/record3");
+
+        parse_record.parse(input).map_err(|e| e.to_string())?;
+
+        Ok(())
+    }
+
+    // Tests for record that lack any feature footnotes
+    #[test]
+    fn test_parse_4() -> TestResult {
+        let input = include_str!("./testdata/record4");
 
         parse_record.parse(input).map_err(|e| e.to_string())?;
 
