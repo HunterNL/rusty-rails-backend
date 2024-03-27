@@ -2,9 +2,10 @@ use std::{
     error::Error,
     fs::{self, File},
     io::Write,
-    path::{Path, PathBuf},
-    // time::Duration,
+    path::{Path, PathBuf}, // time::Duration,
 };
+
+use anyhow::anyhow;
 
 use crate::{ndovloket_api, ns_api, AppConfig};
 
@@ -23,7 +24,7 @@ impl Cache {
         allow_overwrite: bool,
         base_dir: PathBuf,
         _client: Option<reqwest::blocking::Client>,
-    ) -> Result<Self, String> {
+    ) -> Result<Self, anyhow::Error> {
         // let client = client.unwrap_or_else(|| {
         //     reqwest::blocking::Client::builder()
         //         .connect_timeout(Duration::from_secs(30))
@@ -31,7 +32,7 @@ impl Cache {
         //         .expect("client") // TODO Bubble up this error
         // });
 
-        fs::create_dir_all(&base_dir).map_err(|e| e.to_string())?;
+        fs::create_dir_all(&base_dir)?;
 
         Ok(Self {
             // client,
@@ -60,11 +61,11 @@ impl Cache {
     }
 }
 
-pub fn update(config: AppConfig) -> Result<(), String> {
+pub fn update(config: AppConfig) -> Result<(), anyhow::Error> {
     let storage_dir = config.cache_dir.join("remote");
 
     if config.cache_dir.extension().is_some() {
-        return Err("Expected cache_dir to be a directory".to_owned());
+        return Err(anyhow!("Expected cache_dir to be a directory"));
     }
 
     let cache = Cache::new(config.allow_cache_overwrite, storage_dir, None)?;

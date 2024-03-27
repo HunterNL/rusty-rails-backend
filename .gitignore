@@ -1,3 +1,4 @@
 /target
 /cache
-config/secrets.env
+config/project.secret.toml
+config/local.toml

@@ -100,15 +100,15 @@ fn hello(poem::web::Path(name): poem::web::Path<String>) -> String {
     format!("hello: {name}")
 }
 
-pub fn serve(config: AppConfig) -> Result<(), String> {
+pub fn serve(config: AppConfig) -> Result<(), anyhow::Error> {
     let http_dir = config.cache_dir.join(HTTP_CACHE_SUBDIR);
     let data = datarepo::DataRepo::new(&config.cache_dir);
-    prepare_files(&data, &http_dir).map_err(|()| "Error preparing files".to_owned())?;
+    prepare_files(&data, &http_dir)?;
 
-    start_server(config, data).map_err(|e| e.to_string())
+    start_server(config, data)
 }
 
-fn prepare_files(data: &DataRepo, http_cache_dir: &Path) -> Result<(), ()> {
+fn prepare_files(data: &DataRepo, http_cache_dir: &Path) -> Result<(), anyhow::Error> {
     let link_file_content = serde_json::to_vec(data.links()).expect("should serialize links");
     let station_file_content =
         serde_json::to_vec(data.stations()).expect("should serialize stations");
@@ -144,7 +144,7 @@ fn active_rides_endpoint(data: Data<&Arc<DataRepo>>, _req: String) -> Response {
 }
 
 #[tokio::main]
-async fn start_server(config: AppConfig, data: DataRepo) -> Result<(), Box<dyn std::error::Error>> {
+async fn start_server(config: AppConfig, data: DataRepo) -> Result<(), anyhow::Error> {
     let d = Arc::new(data);
     let https_serve_dir = config.cache_dir.join(HTTP_CACHE_SUBDIR);
     let stations_endpoint = StaticFileEndpoint::new(https_serve_dir.join(HTTP_CACHE_STATION_PATH));

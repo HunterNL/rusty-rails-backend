@@ -6,11 +6,12 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+anyhow = "1.0.81"
 bytes = "1.5.0"
 chrono = { version = "0.4.31", features = ["clock"] }
 chrono-tz = { version = "0.8.5", features = ["filter-by-regex"] }
 clap = { version = "4.4.11", features = ["derive"] }
-dotenvy = "0.15.7"
+figment = { version = "0.10.15", features = ["toml", "env"] }
 poem = { version = "2.0.0", features = ["static-files"] }
 reqwest = { version ="0.11.23", features = ["blocking"]}
 serde = { version = "1.0.195", features = ["derive"] }
