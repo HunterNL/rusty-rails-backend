@@ -2,6 +2,7 @@ mod datarepo;
 
 use std::{fs, path::Path, sync::Arc};
 
+use anyhow::Ok;
 use poem::{
     endpoint::StaticFileEndpoint,
     get, handler,
@@ -12,6 +13,7 @@ use poem::{
     EndpointExt, Response, Route, Server,
 };
 use serde::{ser::SerializeStruct, Serialize};
+use tokio::sync::mpsc;
 
 use crate::{
     iff::{Leg, LegKind, Record, StopKind},
@@ -145,7 +147,17 @@ fn active_rides_endpoint(data: Data<&Arc<DataRepo>>, _req: String) -> Response {
 
 #[tokio::main]
 async fn start_server(config: AppConfig, data: DataRepo) -> Result<(), anyhow::Error> {
-    let d = Arc::new(data);
+    let (shutdown_sender, mut shutdown_receiver) = mpsc::channel(1);
+
+    ctrlc::set_handler(move || {
+        println!("Shutdown signal received");
+        shutdown_sender
+            .try_send(())
+            .expect("Error sending shutdown signal");
+    })
+    .expect("Error setting Ctrl+C handler");
+
+    let api_data = Arc::new(data);
     let https_serve_dir = config.cache_dir.join(HTTP_CACHE_SUBDIR);
     let stations_endpoint = StaticFileEndpoint::new(https_serve_dir.join(HTTP_CACHE_STATION_PATH));
     let links_endpoint = StaticFileEndpoint::new(https_serve_dir.join(HTTP_CACHE_LINK_PATH));
@@ -157,12 +169,25 @@ async fn start_server(config: AppConfig, data: DataRepo) -> Result<(), anyhow::E
         .at("/data/stations.json", stations_endpoint)
         .at("/data/links.json", links_endpoint)
         .at("/api/activerides", active_rides_endpoint)
-        .with(AddData::new(d))
+        .with(AddData::new(api_data))
         .with(cors);
 
     let server = Server::new(TcpListener::bind("localhost:9001"));
 
-    server.run(app).await?;
+    println!("Server starting");
+
+    server
+        .run_with_graceful_shutdown(
+            app,
+            async {
+                shutdown_receiver.recv().await;
+                println!("Shutting down server")
+            },
+            Some(std::time::Duration::from_secs(5)),
+        )
+        .await?;
+
+    println!("Server shutdown");
 
     Ok(())
 }

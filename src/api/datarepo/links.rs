@@ -35,7 +35,9 @@ pub fn extract_links(file: &File) -> Vec<Link> {
 
 #[derive(Deserialize, Serialize, Debug, Clone, Copy, PartialEq)]
 pub struct Coords2D {
+    // #[serde(serialize_with = "bin_float")]
     longitude: f64, // Do not change the order, matters for Deserialize as it's parsing an array of 2 numbers into this struct
+    // #[serde(serialize_with = "bin_float")]
     latitude: f64,
 }
 
@@ -43,6 +45,7 @@ impl Eq for Coords2D {}
 
 impl Coords2D {
     pub fn new(longitude: f64, latitude: f64) -> Self {
+        // longitude.
         Self {
             longitude,
             latitude,
@@ -137,10 +140,18 @@ fn great_circle_distance(coords1: &Coords2D, coords2: &Coords2D) -> f64 {
 //     // })
 // }
 
+// fn bin_float<S>(f: &f64, s: S) -> Result<S::Ok, S::Error>
+// where
+//     S: Serializer,
+// {
+//     s.serialize_bytes((*f as f32).to_le_bytes().as_slice())
+// }
+
 /// A point on a Path
 #[derive(Debug, Serialize, Clone)]
 struct PathPoint {
     coordinates: Coords2D,
+    #[serde(skip_serializing)]
     start_offset: f64,
 }
 
@@ -175,7 +186,8 @@ struct Geometry {
 #[derive(Debug, Serialize, Clone)]
 struct Path {
     pub points: Vec<PathPoint>,
-    len: f64,
+    #[serde(skip_serializing)]
+    _len: f64,
 }
 
 impl Path {
@@ -231,7 +243,7 @@ impl Path {
         //     });
 
         // let total_length = path_length_m(coordinates);
-        Self { len: sum, points }
+        Self { _len: sum, points }
     }
 
     // pub fn len(&self) -> f64 {

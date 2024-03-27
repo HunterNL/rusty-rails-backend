@@ -11,6 +11,7 @@ bytes = "1.5.0"
 chrono = { version = "0.4.31", features = ["clock"] }
 chrono-tz = { version = "0.8.5", features = ["filter-by-regex"] }
 clap = { version = "4.4.11", features = ["derive"] }
+ctrlc = "3.4.4"
 figment = { version = "0.10.15", features = ["toml", "env"] }
 poem = { version = "2.0.0", features = ["static-files"] }
 reqwest = { version ="0.11.23", features = ["blocking"]}
