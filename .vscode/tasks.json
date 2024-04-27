@@ -24,10 +24,6 @@
 			"args": [
 				"--",
 				"-W",
-				"clippy::pedantic",
-				"-W",
-				"clippy::nursery",
-				"-W",
 				"clippy::unwrap_used",
 				"-A",
 				"clippy::missing-const-for-fn",
@@ -55,10 +51,6 @@
 			"args": [
 				"--fix",
 				"--",
-				"-W",
-				"clippy::pedantic",
-				"-W",
-				"clippy::nursery",
 				"-W",
 				"clippy::unwrap_used",
 				"-A",

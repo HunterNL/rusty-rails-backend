@@ -1,5 +1,5 @@
 //! This module gets the timetable file from <http://data.ndovloket.nl>
-use std::{error::Error, time::Duration};
+use std::time::Duration;
 
 use thiserror::Error;
 
@@ -13,8 +13,8 @@ pub enum NdovLoketError {
 }
 
 impl NDovLoket {
-    pub fn fetch_timetable() -> Result<Vec<u8>, Box<dyn Error>> {
-        let client = reqwest::blocking::Client::builder()
+    pub async fn fetch_timetable() -> Result<Vec<u8>, NdovLoketError> {
+        let client = reqwest::Client::builder()
             .connect_timeout(Duration::from_secs(30))
             .build()
             .map_err(NdovLoketError::Network)?;
@@ -24,13 +24,16 @@ impl NDovLoket {
             .build()
             .map_err(NdovLoketError::Network)?;
 
-        Ok(client
+        // Ok(client
+        client
             .execute(request)
-            .map_err(NdovLoketError::Network)
-            .map_err(Box::new)?
+            .await
+            .map_err(NdovLoketError::Network)?
+            // .map_err(Box::new)?
             .bytes()
+            .await
             .map_err(NdovLoketError::Network)
             .map(std::convert::Into::into)
-            .map_err(Box::new)?)
+        // .map_err(Box::new)?)
     }
 }

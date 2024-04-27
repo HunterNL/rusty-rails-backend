@@ -108,6 +108,7 @@ impl StopKind {
     }
 
     pub fn arrival_time(&self) -> Option<&DayOffset> {
+        #[allow(clippy::match_same_arms)]
         match self {
             Self::Departure(_, _) => None,
             Self::Arrival(_, arrival_time) => Some(arrival_time),
@@ -198,47 +199,48 @@ pub enum LegKind {
 
 impl LegKind {
     pub fn is_moving(&self) -> bool {
-        matches!(&self, LegKind::Moving(_, _, _))
+        matches!(&self, Self::Moving(_, _, _))
     }
 
     pub fn waypoints(&self) -> Option<&Vec<String>> {
         match self {
-            LegKind::Stationary(_, _) => None,
-            LegKind::Moving(_, _, wp) => Some(wp),
+            Self::Stationary(_, _) => None,
+            Self::Moving(_, _, wp) => Some(wp),
         }
     }
 
     pub fn from(&self) -> Option<&String> {
         match self {
-            LegKind::Stationary(_, _) => None,
-            LegKind::Moving(from, _, _) => Some(from),
+            Self::Stationary(_, _) => None,
+            Self::Moving(from, _, _) => Some(from),
         }
     }
 
     pub fn to(&self) -> Option<&String> {
         match self {
-            LegKind::Stationary(_, _) => None,
-            LegKind::Moving(_, to, _) => Some(to),
+            Self::Stationary(_, _) => None,
+            Self::Moving(_, to, _) => Some(to),
         }
     }
 
     pub fn station_code(&self) -> Option<&String> {
         match self {
-            LegKind::Stationary(code, _) => Some(code),
-            LegKind::Moving(_, _, _) => None,
+            Self::Stationary(code, _) => Some(code),
+            Self::Moving(_, _, _) => None,
         }
     }
 
     pub fn platform_info(&self) -> Option<&PlatformInfo> {
+        #[allow(clippy::match_same_arms)]
         match self {
-            LegKind::Stationary(_, kind) => match kind {
+            Self::Stationary(_, kind) => match kind {
                 StopKind::Departure(plat, _) => plat.as_ref(),
                 StopKind::Arrival(plat, _) => plat.as_ref(),
                 StopKind::Waypoint => None,
                 StopKind::StopShort(plat, _) => plat.as_ref(),
                 StopKind::StopLong(plat, _, _) => plat.as_ref(),
             },
-            LegKind::Moving(_, _, _) => None,
+            Self::Moving(_, _, _) => None,
         }
     }
 }

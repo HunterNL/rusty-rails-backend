@@ -1,103 +1,127 @@
 use std::{
-    error::Error,
+    fmt::Debug,
     fs::{self, File},
+    future::Future,
     io::Write,
     path::{Path, PathBuf}, // time::Duration,
 };
 
-use anyhow::anyhow;
-
-use crate::{ndovloket_api, ns_api, AppConfig};
-
-const TIMETABLE_PATH: &str = "ns-latest.zip";
-const STATION_FILEPATH: &str = "stations.json";
-const ROUTE_FILEPATH: &str = "route.json";
+#[derive(Debug)]
+pub enum Action {
+    Updated,
+    Skipped,
+}
 
 pub struct Cache {
-    // client: reqwest::blocking::Client,
-    allow_overwrite: bool,
     base_dir: PathBuf,
 }
 
-impl Cache {
-    pub fn new(
-        allow_overwrite: bool,
-        base_dir: PathBuf,
-        _client: Option<reqwest::blocking::Client>,
-    ) -> Result<Self, anyhow::Error> {
-        // let client = client.unwrap_or_else(|| {
-        //     reqwest::blocking::Client::builder()
-        //         .connect_timeout(Duration::from_secs(30))
-        //         .build()
-        //         .expect("client") // TODO Bubble up this error
-        // });
+pub trait SourceAsync<E> {
+    async fn get_async(&self) -> Result<Vec<u8>, E>;
+}
 
-        fs::create_dir_all(&base_dir)?;
+pub trait Source<E> {
+    fn get(&self) -> Result<Vec<u8>, E>;
+}
 
-        Ok(Self {
-            // client,
-            allow_overwrite,
-            base_dir,
-        })
-    }
+// impl CacheSourceAsync for dyn Fn() -> dyn Future<Output = Result<Vec<u8>, anyhow::Error>> {
+//     async fn get_async(&self) -> Result<Vec<u8>, anyhow::Error> {
+//         (*self)()
+//     }
+// }
 
-    pub fn ensure_present<S>(&self, source: S, output_path: &Path) -> Result<(), String>
-    where
-        S: FnOnce() -> Result<Vec<u8>, Box<dyn Error>>,
-    {
-        let file_path = self.base_dir.join(output_path);
-
-        if file_path.exists() && !self.allow_overwrite {
-            return Err("File already exist, pass --allow-cache-overwrite to force update".into());
-        };
-
-        let mut file =
-            File::create(&file_path).map_err(|e| format!("Error making file handle: {e}"))?;
-
-        let content = source().map_err(|e| e.to_string())?;
-
-        file.write_all(&content)
-            .map_err(|e| format!("Error writing response file: {e}"))
+// impl<T: Send + Sync + 'static> CacheSourceAsync for T
+// where
+//     T: Fn() -> Result<Vec<u8>, anyhow::Error> + Send + Sync + 'static,
+// {
+//     async fn get_async(&self) -> Result<Vec<u8>, anyhow::Error> {
+//         self()
+//     }
+// }
+impl<E, F, Fut> SourceAsync<E> for F
+where
+    F: Fn() -> Fut,
+    Fut: Future<Output = Result<Vec<u8>, E>>,
+{
+    async fn get_async(&self) -> Result<Vec<u8>, E> {
+        self().await
     }
 }
 
-pub fn update(config: AppConfig) -> Result<(), anyhow::Error> {
-    let storage_dir = config.cache_dir.join("remote");
+impl<E, F> Source<E> for F
+where
+    F: Fn() -> Result<Vec<u8>, E>,
+{
+    fn get(&self) -> Result<Vec<u8>, E> {
+        self()
+    }
+}
 
-    if config.cache_dir.extension().is_some() {
-        return Err(anyhow!("Expected cache_dir to be a directory"));
+// impl<E> CacheSource<E> for dyn Fn() -> Result<Vec<u8>, E> {
+//     fn get(&self) -> Result<Vec<u8>, E> {
+//         self()
+//     }
+// }
+
+#[derive(thiserror::Error, Debug)]
+pub enum CacheError<E>
+where
+// E1: Error,
+{
+    #[error("File exsists")]
+    FileExists,
+    #[error("Error handling file io: {0}")]
+    IOError(std::io::Error),
+    #[error("Error from data source: {0}")]
+    SourceError(E),
+}
+
+impl Cache {
+    pub fn new(base_dir: PathBuf) -> Result<Self, anyhow::Error> {
+        fs::create_dir_all(&base_dir)?;
+
+        Ok(Self { base_dir })
     }
 
-    let cache = Cache::new(config.allow_cache_overwrite, storage_dir, None)?;
+    pub fn ensure<S, E>(&self, source: S, output_path: &Path) -> Result<Action, CacheError<E>>
+    where
+        S: Source<E>,
+        // E: Error + Send + Sync + 'static,
+    {
+        let file_path = self.base_dir.join(output_path);
 
-    cache
-        .ensure_present(
-            ndovloket_api::NDovLoket::fetch_timetable,
-            Path::new(TIMETABLE_PATH),
-        )
-        .unwrap_or_else(|e| eprintln!("{e}"));
+        if file_path.exists() {
+            return Ok(Action::Skipped);
+        }
 
-    if config.ns_api_key.is_some() {
-        let ns = ns_api::NsApi::new(config.ns_api_key.unwrap());
+        let content = source.get().map_err(CacheError::SourceError)?;
 
-        cache
-            .ensure_present(
-                || ns.fetch_routes().map_err(|e| Box::new(e) as Box<dyn Error>),
-                Path::new(ROUTE_FILEPATH),
-            )
-            .unwrap_or_else(|e| eprintln!("{e}"));
-        cache
-            .ensure_present(
-                || {
-                    ns.fetch_stations()
-                        .map_err(|e| Box::new(e) as Box<dyn Error>)
-                },
-                Path::new(STATION_FILEPATH),
-            )
-            .unwrap_or_else(|e| eprintln!("{e}"));
-    } else {
-        println!("Skipping updating NS data, no key");
+        let mut file = File::create(&file_path).map_err(CacheError::IOError)?;
+        file.write_all(&content).map_err(CacheError::IOError)?;
+
+        Ok(Action::Updated)
     }
 
-    Ok(())
+    pub async fn ensure_async<S, E>(
+        &self,
+        source: S,
+        output_path: impl AsRef<Path>,
+    ) -> Result<Action, CacheError<E>>
+    where
+        S: SourceAsync<E>,
+        // E: Error + Send + Sync + 'static,
+    {
+        let file_path = self.base_dir.join(output_path);
+
+        if file_path.exists() {
+            return Ok(Action::Skipped);
+        };
+
+        let content = source.get_async().await.map_err(CacheError::SourceError)?;
+
+        let mut file = File::create(&file_path).map_err(CacheError::IOError)?;
+        file.write_all(&content).map_err(CacheError::IOError)?;
+
+        Ok(Action::Updated)
+    }
 }

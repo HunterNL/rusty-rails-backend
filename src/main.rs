@@ -2,13 +2,14 @@ mod api;
 mod cache;
 mod cli;
 mod dayoffset;
+mod fetch;
 mod iff;
 mod ndovloket_api;
-mod ns_api;
 
 use std::path::PathBuf;
 
 use anyhow::Context;
+
 use figment::{
     providers::{Env, Format, Toml},
     Figment,
@@ -41,7 +42,7 @@ fn main() -> Result<(), anyhow::Error> {
     };
 
     match cli_options.command {
-        cli::SubCommand::Fetch => cache::update(config),
+        cli::SubCommand::Fetch => fetch::fetch(config),
         cli::SubCommand::Serve => api::serve(config),
     }
 }

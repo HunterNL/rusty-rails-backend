@@ -1,7 +1,7 @@
 use clap::{Parser, Subcommand};
 
 #[derive(Parser)]
-pub struct CliOptions {
+pub struct Options {
     #[arg(short,long,default_value_t=String::from("./cache"),global=true)]
     pub cache_dir: String,
 
@@ -20,6 +20,6 @@ pub enum SubCommand {
     Serve,
 }
 
-pub fn get_cli_args() -> CliOptions {
-    CliOptions::parse()
+pub fn get_cli_args() -> Options {
+    Options::parse()
 }
