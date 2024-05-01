@@ -11,7 +11,7 @@ mod stations;
 use crate::{
     api::datarepo::{links::extract_links, stations::extract_stations},
     dayoffset::DayOffset,
-    iff::{Iff, Leg, LegKind, Record},
+    iff::{self, Iff, Leg, LegKind, Record, Ride},
 };
 
 use self::{links::Link, stations::Station};
@@ -23,6 +23,7 @@ pub struct DataRepo {
     // rides: Vec<Record>,
     // link_map: HashMap<LinkCode, Link>,
     iff: Iff,
+    rides: Vec<iff::Ride>,
 }
 
 /// Key to identify links, looking up links with the waypoint identifiers the wrong way around should return a corrected Link
@@ -146,6 +147,13 @@ impl DataRepo {
             .rides
             .retain(|ride| has_complete_data(ride, &station_codes, &link_map));
 
+        let rides: Vec<iff::Ride> = iff
+            .timetable()
+            .rides
+            .iter()
+            .flat_map(|record| record.split_on_ride_id())
+            .collect();
+
         // let links_map=  HashMap::from_iter(links.iter().map(|link| (make_link_code(link., b))))
 
         // timetable.rides.retain(|ride| {
@@ -160,6 +168,7 @@ impl DataRepo {
         // println!("{:?}", stations);
 
         Self {
+            rides,
             links,
             stations,
             // link_map,
@@ -167,23 +176,27 @@ impl DataRepo {
         }
     }
 
-    pub fn rides_active_at_time(&self, time: &NaiveTime, date: &NaiveDate) -> Vec<Record> {
+    pub fn rides(&self) -> &[Ride] {
+        &self.rides
+    }
+
+    pub fn rides_active_at_time(&self, time: &NaiveTime, date: &NaiveDate) -> Vec<&Ride> {
         let time = DayOffset::from_naivetime(time);
 
         println!("{time:?}");
         println!("{}", self.iff.timetable().rides.len());
-        self.iff
-            .timetable()
-            .rides
+        self.rides()
+            // .timetable()
+            // .rides
             .iter()
             .filter(|r| r.start_time() < time && r.end_time() > time)
             .filter(|r| {
                 self.iff
                     .validity()
-                    .is_valid_on_day(r.day_validity_footnote.footnote, *date)
+                    .is_valid_on_day(r.day_validity, *date)
                     .unwrap()
             })
-            .cloned()
+            // .cloned()
             .collect()
     }
 

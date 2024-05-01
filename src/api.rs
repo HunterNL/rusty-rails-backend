@@ -16,7 +16,7 @@ use serde::{ser::SerializeStruct, Serialize};
 use tokio::sync::mpsc;
 
 use crate::{
-    iff::{Leg, LegKind, Record, StopKind},
+    iff::{Leg, LegKind, Record, Ride, StopKind},
     AppConfig,
 };
 
@@ -32,6 +32,7 @@ pub trait IntoAPIObject {
 
 impl IntoAPIObject for Record {}
 impl IntoAPIObject for Leg {}
+impl IntoAPIObject for Ride {}
 
 fn stopkind_to_num(stop_kind: &StopKind) -> u8 {
     match stop_kind {
@@ -73,13 +74,38 @@ impl<'a> Serialize for ApiObject<'a, Record> {
     where
         S: serde::Serializer,
     {
+        let mut record = serializer.serialize_struct("ride", 7)?;
+        record.serialize_field("id", &self.0.id)?;
+        record.serialize_field("startTime", &self.0.start_time())?;
+        record.serialize_field("endTime", &self.0.end_time())?;
+        record.serialize_field("distance", &0)?;
+        record.serialize_field("dayValidity", &0)?;
+        record.serialize_field("rideIds", &self.0.ride_id)?;
+        record.serialize_field(
+            "legs",
+            &self
+                .0
+                .generate_legs()
+                .iter()
+                .map(|l| l.as_api_object())
+                .collect::<Vec<_>>(),
+        )?;
+        record.end()
+    }
+}
+
+impl<'a> Serialize for ApiObject<'a, Ride> {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
         let mut ride = serializer.serialize_struct("ride", 7)?;
         ride.serialize_field("id", &self.0.id)?;
         ride.serialize_field("startTime", &self.0.start_time())?;
         ride.serialize_field("endTime", &self.0.end_time())?;
         ride.serialize_field("distance", &0)?;
         ride.serialize_field("dayValidity", &0)?;
-        ride.serialize_field("rideIds", &self.0.ride_id)?;
+        ride.serialize_field("id", &self.0.id)?;
         ride.serialize_field(
             "legs",
             &self
@@ -106,6 +132,11 @@ pub fn serve(config: AppConfig) -> Result<(), anyhow::Error> {
     let http_dir = config.cache_dir.join(HTTP_CACHE_SUBDIR);
     let data = datarepo::DataRepo::new(&config.cache_dir);
     prepare_files(&data, &http_dir)?;
+
+    //Health check
+    let timetable_tz = chrono_tz::Europe::Amsterdam;
+    let now = chrono::Utc::now().with_timezone(&timetable_tz);
+    let _ = data.rides_active_at_time(&now.naive_local().time(), &now.date_naive());
 
     start_server(config, data)
 }

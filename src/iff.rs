@@ -121,6 +121,16 @@ impl StopKind {
     pub fn is_waypoint(&self) -> bool {
         self == &Self::Waypoint
     }
+
+    pub fn platform_info(&self) -> Option<&PlatformInfo> {
+        match self {
+            StopKind::Departure(pl, _) => pl.as_ref(),
+            StopKind::Arrival(pl, _) => pl.as_ref(),
+            StopKind::Waypoint => None,
+            StopKind::StopShort(pl, _) => pl.as_ref(),
+            StopKind::StopLong(pl, _, _) => pl.as_ref(),
+        }
+    }
 }
 
 #[derive(PartialEq, Eq, Debug)]
@@ -180,7 +190,7 @@ pub struct Record {
     pub id: u64,
     pub timetable: Vec<TimetableEntry>,
     pub ride_id: Vec<RideId>,
-    pub day_validity_footnote: Footnote,
+    pub day_validity_footnote: u64,
     pub transit_types: Vec<TransitMode>,
 }
 
@@ -189,6 +199,16 @@ pub struct Footnote {
     pub footnote: u64,
     pub first_stop: u64,
     pub last_stop: u64,
+}
+
+#[derive(Debug, Serialize, Clone, PartialEq, Eq)]
+pub struct Ride {
+    pub id: String,
+    pub transit_mode: String,
+    pub timetable: Vec<TimetableEntry>,
+    pub day_validity: u64,
+    pub previous: Option<String>,
+    pub next: Option<String>,
 }
 
 #[derive(Serialize)]

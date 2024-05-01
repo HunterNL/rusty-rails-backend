@@ -24,16 +24,13 @@ impl NDovLoket {
             .build()
             .map_err(NdovLoketError::Network)?;
 
-        // Ok(client
         client
             .execute(request)
             .await
             .map_err(NdovLoketError::Network)?
-            // .map_err(Box::new)?
             .bytes()
             .await
             .map_err(NdovLoketError::Network)
             .map(std::convert::Into::into)
-        // .map_err(Box::new)?)
     }
 }

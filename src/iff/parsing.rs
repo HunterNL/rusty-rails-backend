@@ -14,7 +14,7 @@ use winnow::{PResult, Parser};
 use crate::dayoffset::DayOffset;
 
 use super::{
-    DayValidityFootnote, Footnote, Header, Leg, LegKind, PlatformInfo, Record, RideId,
+    DayValidityFootnote, Footnote, Header, Leg, LegKind, PlatformInfo, Record, Ride, RideId,
     RideValidity, StopKind, TimeTable, TimetableEntry,
 };
 
@@ -221,66 +221,177 @@ fn leg_for_stop(entry: &TimetableEntry) -> Leg {
     }
 }
 
-impl Record {
+// Gets the index of the nth stop, skipping waypoints
+fn timetable_stop_index(entries: &[TimetableEntry], nth: usize) -> Option<usize> {
+    entries
+        .iter()
+        .enumerate()
+        .filter(|(_, stop)| !stop.stop_kind.is_waypoint())
+        .nth(nth)
+        .map(|(index, _)| index)
+}
+
+fn timetable_start(entries: &[TimetableEntry]) -> DayOffset {
+    *entries
+        .first()
+        .expect("timetable to have an entry")
+        .stop_kind
+        .departure_time()
+        .expect("first entry to have a departure time")
+}
+
+fn timetable_end(entries: &[TimetableEntry]) -> DayOffset {
+    *entries
+        .last()
+        .expect("timetable to have an entry")
+        .stop_kind
+        .arrival_time()
+        .expect("last entry to have an arrival time")
+}
+
+fn timetable_normalize_ends(entries: &mut [TimetableEntry]) {
+    assert!(entries.len() >= 2);
+
+    // Change first entry into a departure
+    let departure_time = entries
+        .first()
+        .unwrap()
+        .stop_kind
+        .departure_time()
+        .expect("stop have departure time");
+    let departure_platform = entries.first().unwrap().stop_kind.platform_info().cloned();
+
+    entries.first_mut().unwrap().stop_kind =
+        StopKind::Departure(departure_platform, *departure_time);
+
+    // Change last entry into a arrival
+    let arrival_time = entries
+        .last()
+        .unwrap()
+        .stop_kind
+        .arrival_time()
+        .expect("stop to have arrival time");
+    let arrival_platform = entries.last().unwrap().stop_kind.platform_info().cloned();
+
+    entries.last_mut().unwrap().stop_kind = StopKind::Arrival(arrival_platform, *arrival_time);
+}
+
+pub fn generate_legs(entries: &[TimetableEntry]) -> Vec<Leg> {
+    let mut out = vec![];
+    let mut waypoints = vec![];
+    let first_stop = entries.first().expect("timetable to have an entry");
+    let mut previous_stop = first_stop;
+
+    out.push(leg_for_stop(first_stop));
+
+    entries.iter().skip(1).for_each(|entry| {
+        // Collect non-stopping points into waypoints. These are needed later on to find the right Links between Stations
+        if entry.stop_kind.is_waypoint() {
+            waypoints.push(entry);
+            return;
+        }
+
+        out.push(Leg {
+            start: *previous_stop
+                .stop_kind
+                .departure_time()
+                .expect("leg start to have a departure time"),
+            end: *entry
+                .stop_kind
+                .arrival_time()
+                .expect("leg end to have an arrival time"),
+            kind: LegKind::Moving(
+                previous_stop.code.clone(),
+                entry.code.clone(),
+                waypoints.iter().map(|c| c.code.clone()).collect(),
+            ),
+        });
+
+        previous_stop = entry;
+
+        waypoints.clear();
+
+        out.push(leg_for_stop(entry));
+    });
+
+    out
+}
+
+impl Ride {
     pub fn start_time(&self) -> DayOffset {
-        *self
-            .timetable
-            .first()
-            .expect("timetable to have an entry")
-            .stop_kind
-            .departure_time()
-            .expect("first entry to have a departure time")
+        timetable_start(self.timetable.as_slice())
     }
 
     pub fn end_time(&self) -> DayOffset {
-        *self
-            .timetable
-            .last()
-            .expect("timetable to have an entry")
-            .stop_kind
-            .arrival_time()
-            .expect("last entry to have an arrival time")
+        timetable_end(self.timetable.as_slice())
+    }
+
+    pub fn generate_legs(&self) -> Vec<Leg> {
+        generate_legs(&self.timetable)
+    }
+}
+
+impl Record {
+    pub fn start_time(&self) -> DayOffset {
+        timetable_start(self.timetable.as_slice())
+    }
+
+    pub fn end_time(&self) -> DayOffset {
+        timetable_end(self.timetable.as_slice())
+    }
+
+    pub fn split_on_ride_id(&self) -> Vec<Ride> {
+        let is_sole_transit_type = self.transit_types.len() == 1;
+
+        if !is_sole_transit_type && self.ride_id.len() > 1 {
+            println!("{:#?}", self);
+            todo!("Support mixed transit_types and rideids")
+        }
+
+        self.ride_id
+            .iter()
+            .enumerate()
+            .map(|(index, ride_id)| {
+                let transit_type = if is_sole_transit_type {
+                    self.transit_types.first().unwrap()
+                } else {
+                    self.transit_types.get(index).unwrap()
+                };
+
+                let first_stop_idx =
+                    timetable_stop_index(&self.timetable, ride_id.first_stop as usize - 1)
+                        .expect("to find first stop");
+                let last_stop_idx =
+                    timetable_stop_index(&self.timetable, ride_id.last_stop as usize - 1)
+                        .expect("to find last stop");
+
+                let mut timetable = self.timetable[first_stop_idx..=last_stop_idx].to_owned();
+
+                timetable_normalize_ends(&mut timetable);
+
+                let next = self.ride_id.get(index + 1).map(|id| id.ride_id.to_string());
+
+                let is_first = index == 0;
+                let previous = if is_first {
+                    None
+                } else {
+                    self.ride_id.get(index - 1).map(|id| id.ride_id.to_string())
+                };
+
+                Ride {
+                    transit_mode: transit_type.mode.clone(),
+                    timetable,
+                    id: ride_id.ride_id.to_string(),
+                    day_validity: self.day_validity_footnote,
+                    next,
+                    previous,
+                }
+            })
+            .collect()
     }
 
     pub(crate) fn generate_legs(&self) -> Vec<Leg> {
-        let mut out = vec![];
-        let mut waypoints = vec![];
-        let first_stop = self.timetable.first().expect("timetable to have an entry");
-        let mut previous_stop = first_stop;
-
-        out.push(leg_for_stop(first_stop));
-
-        self.timetable.iter().skip(1).for_each(|entry| {
-            // Collect non-stopping points into waypoints. These are needed later on to find the right Links between Stations
-            if entry.stop_kind.is_waypoint() {
-                waypoints.push(entry);
-                return;
-            }
-
-            out.push(Leg {
-                start: *previous_stop
-                    .stop_kind
-                    .departure_time()
-                    .expect("leg start to have a departure time"),
-                end: *entry
-                    .stop_kind
-                    .arrival_time()
-                    .expect("leg end to have an arrival time"),
-                kind: LegKind::Moving(
-                    previous_stop.code.clone(),
-                    entry.code.clone(),
-                    waypoints.iter().map(|c| c.code.clone()).collect(),
-                ),
-            });
-
-            previous_stop = entry;
-
-            waypoints.clear();
-
-            out.push(leg_for_stop(entry));
-        });
-
-        out
+        generate_legs(&self.timetable)
     }
 }
 
@@ -499,7 +610,7 @@ fn parse_record(input: &mut &str) -> PResult<Record> {
                 id: seq.0,
                 timetable: v,
                 ride_id: seq.2,
-                day_validity_footnote: seq.3,
+                day_validity_footnote: seq.3.footnote, // NONSTANDARD assuming date footnotes span the entire length of a record
                 transit_types: vec![seq.5],
             }
         },
@@ -517,12 +628,130 @@ mod test_record {
     use crate::{
         dayoffset::DayOffset,
         iff::{
-            parsing::{Footnote, RideId, TimetableEntry, TransitMode},
-            PlatformInfo, StopKind,
+            parsing::{RideId, TimetableEntry, TransitMode},
+            PlatformInfo, Ride, StopKind,
         },
     };
 
+    macro_rules! platform {
+        ($platform:literal,$footnote:literal) => {
+            PlatformInfo {
+                arrival_platform: Some($platform.to_owned()),
+                departure_platform: Some($platform.to_owned()),
+                footnote: $footnote,
+            }
+        };
+    }
+
+    macro_rules! entry {
+        ($station:literal,$stop:expr) => {
+            TimetableEntry {
+                code: $station.to_owned(),
+                stop_kind: $stop,
+            }
+        };
+    }
+
     use super::parse_record;
+
+    #[test]
+    fn test_record_split() -> TestResult {
+        let record = parse_record
+            .parse(include_str!("./testdata/record1"))
+            .unwrap();
+
+        let rides = record.split_on_ride_id();
+
+        assert_eq!(rides.len(), 2);
+        let ride0 = rides.get(0).unwrap();
+        let ride1 = rides.get(1).unwrap();
+
+        assert_eq!(
+            ride0,
+            &Ride {
+                id: "2871".to_owned(),
+                transit_mode: "IC".to_owned(),
+                timetable: vec![
+                    entry!(
+                        "rtd",
+                        StopKind::Departure(
+                            Some(platform!("13", 3)),
+                            DayOffset::from_hour_minute(18, 50)
+                        )
+                    ),
+                    entry!("rtn", StopKind::Waypoint),
+                    TimetableEntry {
+                        code: "rta".to_owned(),
+                        stop_kind: StopKind::StopShort(
+                            Some(PlatformInfo {
+                                arrival_platform: Some("1".to_owned()),
+                                departure_platform: Some("1".to_owned()),
+                                footnote: 3
+                            }),
+                            DayOffset::from_hour_minute(18, 58)
+                        )
+                    },
+                    entry!("cps", StopKind::Waypoint),
+                    entry!("nwk", StopKind::Waypoint),
+                    entry!(
+                        "gd",
+                        StopKind::StopLong(
+                            Some(platform!("3", 3)),
+                            DayOffset::from_hour_minute(19, 8),
+                            DayOffset::from_hour_minute(19, 9)
+                        )
+                    ),
+                    entry!("gdg", StopKind::Waypoint),
+                    entry!("wd", StopKind::Waypoint),
+                    entry!("vtn", StopKind::Waypoint),
+                    entry!("utt", StopKind::Waypoint),
+                    entry!("utlr", StopKind::Waypoint),
+                    entry!(
+                        "ut",
+                        StopKind::Arrival(
+                            Some(platform!("11", 3)),
+                            DayOffset::from_hour_minute(19, 28)
+                        )
+                    ),
+                ],
+                day_validity: 3,
+                previous: None,
+                next: Some("1771".to_owned())
+            }
+        );
+
+        assert_eq!(
+            ride1,
+            &Ride {
+                id: "1771".to_owned(),
+                transit_mode: "IC".to_owned(),
+                timetable: vec![
+                    entry!(
+                        "ut",
+                        StopKind::Departure(
+                            Some(platform!("11", 3)),
+                            DayOffset::from_hour_minute(19, 36)
+                        )
+                    ),
+                    entry!("uto", StopKind::Waypoint),
+                    entry!("bhv", StopKind::Waypoint),
+                    entry!("dld", StopKind::Waypoint),
+                    entry!(
+                        "amf",
+                        StopKind::Arrival(
+                            Some(platform!("2", 3)),
+                            DayOffset::from_hour_minute(19, 50)
+                        )
+                    ),
+                ],
+                day_validity: 3,
+                previous: Some("2871".to_owned()),
+                next: None
+            }
+        );
+
+        Ok(())
+    }
 
     #[test]
     fn test_record_parse() -> TestResult {
@@ -541,14 +770,7 @@ mod test_record {
             }
         );
 
-        assert_eq!(
-            record.day_validity_footnote,
-            Footnote {
-                footnote: 3,
-                first_stop: 0,
-                last_stop: 999,
-            },
-        );
+        assert_eq!(record.day_validity_footnote, 3);
 
         assert_eq!(
             record.ride_id,
