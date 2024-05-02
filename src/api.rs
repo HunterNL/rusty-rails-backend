@@ -2,7 +2,8 @@ mod datarepo;
 
 use std::{fs, path::Path, sync::Arc};
 
-use anyhow::Ok;
+use anyhow::{anyhow, Ok};
+use ns_api::{NsApi, TripAdviceArguments};
 use poem::{
     endpoint::StaticFileEndpoint,
     get, handler,
@@ -12,7 +13,7 @@ use poem::{
     web::Data,
     EndpointExt, Response, Route, Server,
 };
-use serde::{ser::SerializeStruct, Serialize};
+use serde::{ser::SerializeStruct, Deserialize, Serialize};
 use tokio::sync::mpsc;
 
 use crate::{
@@ -131,14 +132,22 @@ fn hello(poem::web::Path(name): poem::web::Path<String>) -> String {
 pub fn serve(config: AppConfig) -> Result<(), anyhow::Error> {
     let http_dir = config.cache_dir.join(HTTP_CACHE_SUBDIR);
     let data = datarepo::DataRepo::new(&config.cache_dir);
+
     prepare_files(&data, &http_dir)?;
+
+    let ns_key = config
+        .ns_api_key
+        .as_ref()
+        .ok_or(anyhow!("NS API key missing!"))?;
+
+    let ns_api = ns_api::NsApi::new(ns_key.to_owned());
 
     //Health check
     let timetable_tz = chrono_tz::Europe::Amsterdam;
     let now = chrono::Utc::now().with_timezone(&timetable_tz);
     let _ = data.rides_active_at_time(&now.naive_local().time(), &now.date_naive());
 
-    start_server(config, data)
+    start_server(config, data, ns_api)
 }
 
 fn prepare_files(data: &DataRepo, http_cache_dir: &Path) -> Result<(), anyhow::Error> {
@@ -156,6 +165,45 @@ fn prepare_files(data: &DataRepo, http_cache_dir: &Path) -> Result<(), anyhow::E
         .expect("write links file");
 
     Ok(())
+}
+
+#[derive(Serialize)]
+struct RoutePlannerResponse {
+    trips: Vec<RoutePlannerTrip>,
+}
+
+#[derive(Serialize)]
+struct RoutePlannerTrip {
+    legs: Vec<RoutePlannerLeg>,
+}
+
+#[derive(Serialize)]
+struct RoutePlannerLeg {
+    from: String,
+    to: String,
+    id: String,
+}
+
+impl RoutePlannerResponse {
+    pub fn from_api_response(res: &ns_api::Response) -> Self {
+        Self {
+            trips: res
+                .trips
+                .iter()
+                .map(|trip| RoutePlannerTrip {
+                    legs: trip
+                        .legs
+                        .iter()
+                        .map(|leg| RoutePlannerLeg {
+                            from: leg.origin.stationCode.to_owned(),
+                            to: leg.destination.stationCode.to_owned(),
+                            id: leg.product.number.to_owned(),
+                        })
+                        .collect(),
+                })
+                .collect(),
+        }
+    }
 }
 
 #[handler]
@@ -176,8 +224,53 @@ fn active_rides_endpoint(data: Data<&Arc<DataRepo>>, _req: String) -> Response {
         .body(data)
 }
 
+#[derive(Deserialize)]
+struct PathfindingArguments {
+    from: String,
+    to: String,
+}
+
+impl PathfindingArguments {
+    fn validate_string(s: &str) -> bool {
+        s.len() <= 10 && s.chars().all(|c| c.is_ascii_alphabetic())
+    }
+
+    pub fn validate(&self) {
+        if !Self::validate_string(&self.from) || !Self::validate_string(&self.to) {
+            panic!("Queries don't pass")
+        }
+    }
+}
+
+#[handler]
+async fn route_finding_endpoint(
+    ns_api: Data<&Arc<NsApi>>,
+    query: poem::web::Query<PathfindingArguments>,
+) -> Response {
+    query.validate();
+
+    let ns_data = ns_api
+        .find_path(&TripAdviceArguments {
+            from: &query.from,
+            to: &query.to,
+            via: None,
+        })
+        .await
+        .unwrap();
+
+    let response_data = RoutePlannerResponse::from_api_response(&ns_data);
+
+    Response::builder()
+        .header(header::CONTENT_TYPE, "application/json; charset=utf-8")
+        .body(serde_json::to_vec(&response_data).unwrap())
+}
+
 #[tokio::main]
-async fn start_server(config: AppConfig, data: DataRepo) -> Result<(), anyhow::Error> {
+async fn start_server(
+    config: AppConfig,
+    data: DataRepo,
+    ns_api: NsApi,
+) -> Result<(), anyhow::Error> {
     let (shutdown_sender, mut shutdown_receiver) = mpsc::channel(1);
 
     ctrlc::set_handler(move || {
@@ -188,7 +281,6 @@ async fn start_server(config: AppConfig, data: DataRepo) -> Result<(), anyhow::E
     })
     .expect("Error setting Ctrl+C handler");
 
-    let api_data = Arc::new(data);
     let https_serve_dir = config.cache_dir.join(HTTP_CACHE_SUBDIR);
     let stations_endpoint = StaticFileEndpoint::new(https_serve_dir.join(HTTP_CACHE_STATION_PATH));
     let links_endpoint = StaticFileEndpoint::new(https_serve_dir.join(HTTP_CACHE_LINK_PATH));
@@ -197,10 +289,12 @@ async fn start_server(config: AppConfig, data: DataRepo) -> Result<(), anyhow::E
 
     let app = Route::new()
         .at("/hello/:name", get(hello))
-        .at("/data/stations.json", stations_endpoint)
-        .at("/data/links.json", links_endpoint)
-        .at("/api/activerides", active_rides_endpoint)
-        .with(AddData::new(api_data))
+        .at("/data/stations.json", get(stations_endpoint))
+        .at("/data/links.json", get(links_endpoint))
+        .at("/api/activerides", get(active_rides_endpoint))
+        .at("/api/find_route", get(route_finding_endpoint))
+        .with(AddData::new(Arc::new(data)))
+        .with(AddData::new(Arc::new(ns_api)))
         .with(cors);
 
     let server = Server::new(TcpListener::bind("localhost:9001"));

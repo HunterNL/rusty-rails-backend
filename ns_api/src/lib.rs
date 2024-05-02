@@ -26,37 +26,37 @@ pub struct TripAdviceArguments<'a, 'b, 'c> {
 }
 
 mod response_data {
-    use serde::Deserialize;
+    use serde::{Deserialize, Serialize};
 
-    #[derive(Deserialize, Debug)]
+    #[derive(Deserialize, Debug, Serialize)]
     #[allow(non_snake_case)]
-    struct Product {
-        number: String,
-        categoryCode: String,
+    pub struct Product {
+        pub number: String,
+        pub categoryCode: String,
     }
 
-    #[derive(Deserialize, Debug)]
+    #[derive(Deserialize, Debug, Serialize)]
     #[allow(non_snake_case)]
-    struct Location {
-        stationCode: String,
+    pub struct Location {
+        pub stationCode: String,
     }
 
-    #[derive(Deserialize, Debug)]
-    struct Leg {
-        name: String,
-        origin: Location,
-        destination: Location,
-        product: Product,
+    #[derive(Deserialize, Debug, Serialize)]
+    pub struct Leg {
+        pub name: String,
+        pub origin: Location,
+        pub destination: Location,
+        pub product: Product,
     }
 
-    #[derive(Deserialize, Debug)]
-    struct Trip {
-        legs: Vec<Leg>,
+    #[derive(Deserialize, Debug, Serialize)]
+    pub struct Trip {
+        pub legs: Vec<Leg>,
     }
 
-    #[derive(Deserialize, Debug)]
+    #[derive(Deserialize, Debug, Serialize)]
     pub struct Response {
-        trips: Vec<Trip>,
+        pub trips: Vec<Trip>,
     }
 }
 
