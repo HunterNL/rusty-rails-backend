@@ -1,22 +1,25 @@
 mod datarepo;
 
-use std::{fs, path::Path, sync::Arc};
+use std::{collections::HashSet, fs, path::Path, sync::Arc, vec};
 
 use anyhow::{anyhow, Ok};
-use ns_api::{NsApi, TripAdviceArguments};
+use chrono::NaiveDate;
+use ns_api::NsApi;
 use poem::{
     endpoint::StaticFileEndpoint,
-    get, handler,
-    http::header,
+    get,
     listener::TcpListener,
     middleware::{AddData, Cors},
-    web::Data,
-    EndpointExt, Response, Route, Server,
+    EndpointExt, Route, Server,
 };
 use serde::{ser::SerializeStruct, Deserialize, Serialize};
 use tokio::sync::mpsc;
 
+mod active_rides;
+mod find_path_endpoint;
+
 use crate::{
+    api::{active_rides::active_rides_endpoint, find_path_endpoint::route_finding_endpoint},
     iff::{Leg, LegKind, Record, Ride, StopKind},
     AppConfig,
 };
@@ -124,11 +127,6 @@ const HTTP_CACHE_SUBDIR: &str = "http";
 const HTTP_CACHE_STATION_PATH: &str = "stations.json";
 const HTTP_CACHE_LINK_PATH: &str = "links.json";
 
-#[handler]
-fn hello(poem::web::Path(name): poem::web::Path<String>) -> String {
-    format!("hello: {name}")
-}
-
 pub fn serve(config: AppConfig) -> Result<(), anyhow::Error> {
     let http_dir = config.cache_dir.join(HTTP_CACHE_SUBDIR);
     let data = datarepo::DataRepo::new(&config.cache_dir);
@@ -169,7 +167,10 @@ fn prepare_files(data: &DataRepo, http_cache_dir: &Path) -> Result<(), anyhow::E
 
 #[derive(Serialize)]
 struct RoutePlannerResponse {
+    /// Possible routes
     trips: Vec<RoutePlannerTrip>,
+    /// All rides used in the above routes
+    rides: Vec<Ride>,
 }
 
 #[derive(Serialize)]
@@ -185,43 +186,42 @@ struct RoutePlannerLeg {
 }
 
 impl RoutePlannerResponse {
-    pub fn from_api_response(res: &ns_api::Response) -> Self {
+    pub fn new(res: &ns_api::Response, repo: &datarepo::DataRepo) -> Self {
+        let now = chrono::Utc::now().with_timezone(&chrono_tz::Europe::Amsterdam);
+        let trips: Vec<_> = res
+            .trips
+            .iter()
+            .map(|trip| RoutePlannerTrip {
+                legs: trip
+                    .legs
+                    .iter()
+                    .map(|leg| RoutePlannerLeg {
+                        from: leg.origin.stationCode.to_owned(),
+                        to: leg.destination.stationCode.to_owned(),
+                        id: leg.product.number.to_owned(),
+                    })
+                    .collect(),
+            })
+            .collect();
+
+        let trip_ids: HashSet<_> = trips
+            .iter()
+            .flat_map(|trip| &trip.legs)
+            .map(|leg| &leg.id)
+            .collect();
+
         Self {
-            trips: res
-                .trips
+            rides: repo
+                .rides()
                 .iter()
-                .map(|trip| RoutePlannerTrip {
-                    legs: trip
-                        .legs
-                        .iter()
-                        .map(|leg| RoutePlannerLeg {
-                            from: leg.origin.stationCode.to_owned(),
-                            to: leg.destination.stationCode.to_owned(),
-                            id: leg.product.number.to_owned(),
-                        })
-                        .collect(),
-                })
+                .filter(|r| repo.is_ride_valid(r.day_validity, now.date_naive()))
+                .filter(|ride| trip_ids.contains(&ride.id))
+                .cloned()
                 .collect(),
+            // rides: vec![],
+            trips,
         }
     }
-}
-
-#[handler]
-fn active_rides_endpoint(data: Data<&Arc<DataRepo>>, _req: String) -> Response {
-    let timetable_tz = chrono_tz::Europe::Amsterdam;
-
-    let now = chrono::Utc::now().with_timezone(&timetable_tz);
-
-    let data = data.as_ref();
-    let rides = data.rides_active_at_time(&now.naive_local().time(), &now.date_naive());
-
-    let v: Vec<_> = rides.iter().map(|r| r.as_api_object()).collect();
-
-    let data = serde_json::to_vec(&v).unwrap();
-
-    Response::builder()
-        .header(header::CONTENT_TYPE, "application/json; charset=utf-8")
-        .body(data)
 }
 
 #[derive(Deserialize)]
@@ -240,29 +240,6 @@ impl PathfindingArguments {
             panic!("Queries don't pass")
         }
     }
-}
-
-#[handler]
-async fn route_finding_endpoint(
-    ns_api: Data<&Arc<NsApi>>,
-    query: poem::web::Query<PathfindingArguments>,
-) -> Response {
-    query.validate();
-
-    let ns_data = ns_api
-        .find_path(&TripAdviceArguments {
-            from: &query.from,
-            to: &query.to,
-            via: None,
-        })
-        .await
-        .unwrap();
-
-    let response_data = RoutePlannerResponse::from_api_response(&ns_data);
-
-    Response::builder()
-        .header(header::CONTENT_TYPE, "application/json; charset=utf-8")
-        .body(serde_json::to_vec(&response_data).unwrap())
 }
 
 #[tokio::main]
@@ -288,7 +265,6 @@ async fn start_server(
     let cors = Cors::new().allow_origins(["https://localhost:3000", "https://127.0.0.1:3000"]);
 
     let app = Route::new()
-        .at("/hello/:name", get(hello))
         .at("/data/stations.json", get(stations_endpoint))
         .at("/data/links.json", get(links_endpoint))
         .at("/api/activerides", get(active_rides_endpoint))

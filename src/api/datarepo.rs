@@ -211,4 +211,8 @@ impl DataRepo {
     pub fn stations(&self) -> &[Station] {
         &self.stations
     }
+
+    pub fn is_ride_valid(&self, footnote: u64, day: NaiveDate) -> bool {
+        self.iff.validity().is_valid_on_day(footnote, day).unwrap()
+    }
 }
