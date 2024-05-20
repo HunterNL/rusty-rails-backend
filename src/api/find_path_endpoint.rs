@@ -4,7 +4,7 @@ use super::RoutePlannerResponse;
 
 use ns_api::TripAdviceArguments;
 
-use poem::{handler, http::header, web::Json, Response};
+use poem::{handler, http::header, Response};
 
 use super::PathfindingArguments;
 
@@ -19,7 +19,7 @@ pub async fn route_finding_endpoint(
     ns_api: Data<&Arc<NsApi>>,
     datarepo: Data<&Arc<DataRepo>>,
     query: poem::web::Query<PathfindingArguments>,
-) -> Json<RoutePlannerResponse> {
+) -> Response {
     query.validate();
 
     let ns_data = ns_api
@@ -31,9 +31,9 @@ pub async fn route_finding_endpoint(
         .await
         .unwrap();
 
-    Json(RoutePlannerResponse::new(&ns_data, &datarepo))
+    let out = RoutePlannerResponse::new(&ns_data, &datarepo);
 
-    // Response::builder()
-    //     .header(header::CONTENT_TYPE, "application/json; charset=utf-8")
-    //     .body(serde_json::to_vec(&response_data).unwrap())
+    Response::builder()
+        .header(header::CONTENT_TYPE, "application/json; charset=utf-8")
+        .body(serde_json::to_vec(&out).unwrap())
 }

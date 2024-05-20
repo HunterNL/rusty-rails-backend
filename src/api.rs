@@ -166,11 +166,11 @@ fn prepare_files(data: &DataRepo, http_cache_dir: &Path) -> Result<(), anyhow::E
 }
 
 #[derive(Serialize)]
-struct RoutePlannerResponse {
+struct RoutePlannerResponse<'a> {
     /// Possible routes
     trips: Vec<RoutePlannerTrip>,
     /// All rides used in the above routes
-    rides: Vec<Ride>,
+    rides: Vec<ApiObject<'a, Ride>>,
 }
 
 #[derive(Serialize)]
@@ -185,8 +185,8 @@ struct RoutePlannerLeg {
     id: String,
 }
 
-impl RoutePlannerResponse {
-    pub fn new(res: &ns_api::Response, repo: &datarepo::DataRepo) -> Self {
+impl<'a> RoutePlannerResponse<'a> {
+    pub fn new(res: &ns_api::Response, repo: &'a datarepo::DataRepo) -> Self {
         let now = chrono::Utc::now().with_timezone(&chrono_tz::Europe::Amsterdam);
         let trips: Vec<_> = res
             .trips
@@ -216,7 +216,7 @@ impl RoutePlannerResponse {
                 .iter()
                 .filter(|r| repo.is_ride_valid(r.day_validity, now.date_naive()))
                 .filter(|ride| trip_ids.contains(&ride.id))
-                .cloned()
+                .map(|r| r.as_api_object())
                 .collect(),
             // rides: vec![],
             trips,
