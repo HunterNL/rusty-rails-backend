@@ -23,8 +23,6 @@
 			},
 			"args": [
 				"--",
-				"-W",
-				"clippy::unwrap_used",
 				"-A",
 				"clippy::missing-const-for-fn",
 				"-A",
@@ -35,7 +33,7 @@
 			"problemMatcher": [
 				"$rustc"
 			],
-			"label": "rust: cargo clippy"
+			"label": "rust: cargo clippy relaxed"
 		},
 		{
 			"type": "cargo",
@@ -97,10 +95,11 @@
 			"problemMatcher": []
 		},
 		{
-			
 			"type": "cargo",
 			"command": "run",
-			"args": ["serve"],
+			"args": [
+				"serve"
+			],
 			"problemMatcher": [
 				"$rustc"
 			],

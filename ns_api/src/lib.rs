@@ -96,6 +96,7 @@ impl NsApi {
             .map_err(ApiError::Network)
     }
 
+    #[allow(dead_code)]
     async fn fetch_as_string(&self, request: Request) -> Result<String, ApiError> {
         self.client
             .execute(request)

@@ -4,16 +4,13 @@ use std::sync::Arc;
 
 use poem::web::Data;
 
-use crate::{
-    api::{datarepo::DataRepo, ApiObject, IntoAPIObject},
-    iff::Ride,
-};
+use crate::api::{datarepo::DataRepo, IntoAPIObject};
 
 #[handler]
 pub fn all_rides_endpoint(data: Data<&Arc<DataRepo>>, _req: String) -> Response {
     let now = chrono::Utc::now().with_timezone(&chrono_tz::Europe::Amsterdam);
 
-    let rides: Vec<ApiObject<Ride>> = data
+    let rides: Vec<_> = data
         .as_ref()
         .rides_active_on_date(&now.date_naive())
         .iter()

@@ -69,6 +69,7 @@ where
 // E1: Error,
 {
     #[error("File exsists")]
+    #[allow(dead_code)]
     FileExists,
     #[error("Error handling file io: {0}")]
     IOError(std::io::Error),
@@ -83,6 +84,7 @@ impl Cache {
         Ok(Self { base_dir })
     }
 
+    #[allow(dead_code)]
     pub fn ensure<S, E>(&self, source: S, output_path: &Path) -> Result<Action, CacheError<E>>
     where
         S: Source<E>,

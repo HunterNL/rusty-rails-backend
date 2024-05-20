@@ -663,6 +663,7 @@ mod test_record {
         let rides = record.split_on_ride_id();
 
         assert_eq!(rides.len(), 2);
+        #[allow(clippy::get_first)]
         let ride0 = rides.get(0).unwrap();
         let ride1 = rides.get(1).unwrap();
 
