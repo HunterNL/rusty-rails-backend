@@ -183,8 +183,6 @@ impl DataRepo {
     pub fn rides_active_at_time(&self, time: &NaiveTime, date: &NaiveDate) -> Vec<&Ride> {
         let time = DayOffset::from_naivetime(time);
 
-        println!("{time:?}");
-        println!("{}", self.iff.timetable().rides.len());
         self.rides()
             // .timetable()
             // .rides
@@ -197,6 +195,18 @@ impl DataRepo {
                     .unwrap()
             })
             // .cloned()
+            .collect()
+    }
+
+    pub fn rides_active_on_date(&self, date: &NaiveDate) -> Vec<&Ride> {
+        self.rides()
+            .iter()
+            .filter(|r| {
+                self.iff
+                    .validity()
+                    .is_valid_on_day(r.day_validity, *date)
+                    .unwrap()
+            })
             .collect()
     }
 

@@ -16,10 +16,14 @@ use serde::{ser::SerializeStruct, Deserialize, Serialize};
 use tokio::sync::mpsc;
 
 mod active_rides;
+mod all_rides;
 mod find_path_endpoint;
 
 use crate::{
-    api::{active_rides::active_rides_endpoint, find_path_endpoint::route_finding_endpoint},
+    api::{
+        active_rides::active_rides_endpoint, all_rides::all_rides_endpoint,
+        find_path_endpoint::route_finding_endpoint,
+    },
     iff::{Leg, LegKind, Record, Ride, StopKind},
     AppConfig,
 };
@@ -269,6 +273,7 @@ async fn start_server(
         .at("/data/links.json", get(links_endpoint))
         .at("/api/activerides", get(active_rides_endpoint))
         .at("/api/find_route", get(route_finding_endpoint))
+        .at("/api/rides_all", get(all_rides_endpoint))
         .with(AddData::new(Arc::new(data)))
         .with(AddData::new(Arc::new(ns_api)))
         .with(cors);
