@@ -16,17 +16,24 @@
 			"**/node_modules": true,
 			"**/bower_components": true,
 			"**/*.code-search": true
+		},
+		"[typescript]": {
+			"editor.codeActionsOnSave": {
+				"source.organizeImports": "always"
+			}
 		}
-		
 	},
 	"tasks": {
 		"version": "2.0.0",
 		"tasks": [
 			{
 				"label": "Run all",
-				"dependsOn":["Run Backend","SSL Proxy","NPM: Serve"], // VSCode doesn't see tasks from other workspace folders :(
+				"dependsOn": [
+					"Run Backend",
+					"SSL Proxy",
+					"NPM: Serve"
+				], // VSCode doesn't see tasks from other workspace folders :(
 			}
 		]
 	}
-
 }
