@@ -4,11 +4,11 @@ use std::collections::HashMap;
 use std::fmt::Display;
 
 use winnow::ascii::{alphanumeric1, dec_uint, line_ending, multispace0, space0};
+use winnow::combinator::trace;
 use winnow::combinator::{alt, delimited, fail, opt, preceded, repeat, terminated};
 use winnow::stream::AsChar;
-use winnow::trace::trace;
 
-use winnow::token::{one_of, take, take_till, take_until0, take_while};
+use winnow::token::{one_of, take, take_till, take_until, take_while};
 use winnow::{PResult, Parser};
 
 use crate::dayoffset::DayOffset;
@@ -501,17 +501,17 @@ pub struct TransitMode {
     last_stop: i32,
 }
 
+fn till_comma<'a>(input: &mut &'a str) -> PResult<&'a str> {
+    take_till(0.., |c| c == ',').parse_next(input)
+}
+
+fn untill_newline<'a>(input: &mut &'a str) -> PResult<&'a str> {
+    take_until(0.., IFF_NEWLINE).parse_next(input)
+}
+
 //&IC ,001,005
 fn parse_transit_mode(input: &mut &str) -> PResult<TransitMode> {
-    (
-        "&",
-        take_until0(","),
-        ",",
-        dec_uint,
-        ",",
-        dec_uint,
-        IFF_NEWLINE,
-    )
+    ("&", till_comma, ",", dec_uint, ",", dec_uint, IFF_NEWLINE)
         .parse_next(input)
         .map(|seq| TransitMode {
             mode: seq.1.trim().to_owned(),
@@ -543,7 +543,7 @@ fn parse_ride_id(input: &mut &str) -> PResult<RideId> {
         ',',
         dec_uint,
         ',',
-        take_until0(IFF_NEWLINE),
+        untill_newline,
         IFF_NEWLINE,
     )
         .map(|seq| RideId {
