@@ -3,7 +3,7 @@ use serde::Serialize;
 use std::collections::HashMap;
 use std::fmt::Display;
 
-use winnow::ascii::{alphanumeric1, dec_uint, line_ending, multispace0, space0};
+use winnow::ascii::{alphanumeric1, dec_uint, line_ending, multispace0, space0, Uint};
 use winnow::combinator::trace;
 use winnow::combinator::{alt, delimited, fail, opt, preceded, repeat, terminated};
 use winnow::stream::AsChar;
@@ -33,6 +33,10 @@ impl Display for InvalidEncodingError {
     }
 }
 
+// fn recognize_digits<'s>(input: &mut &'s str) -> PResult<&'s str> {
+//     digit1.recognize().parse_next(input)
+// }
+
 fn seperator(input: &mut &str) -> PResult<()> {
     (multispace0, ',').void().parse_next(input)
 }
@@ -41,10 +45,55 @@ fn parse_single_day(input: &mut &str) -> PResult<bool> {
     one_of(['0', '1']).map(|char| char == '1').parse_next(input)
 }
 
+// fn take_zeroes<'a>(input: &mut &'a str) -> PResult<&'a str> {
+//     take_while(0.., '0').parse_next(input)
+// }
+
+// fn parse_uint_leading<'s, U: Uint, A>(input: &mut &'s str) -> PResult<&'s str> {
+//     digit1.parse_next(input)
+// }
+
+// fn skip_zeroes(input: &mut &str) -> PResult<&str> {
+
+// // }
+
+fn dec_uint_leading<Output: Uint + Clone>(input: &mut &str) -> PResult<Output> {
+    alt((
+        (take_while(0.., '0'), dec_uint).map(|a| a.1),
+        (take_while(1.., '0')).value(Output::try_from_dec_uint("0").unwrap()),
+        // (take_while(1.., '0')).value(0),
+        fail,
+    ))
+    .parse_next(input)
+}
+
+// fn get_uint_as_trait<U: Uint>() -> U {
+//     let var_name = 0 as U;
+//     var_name
+// }
+
+// fn foo() {
+//     let a: u8 = get_uint_as_trait();
+//     let b = a;
+// }
+// TODO, pass 0 as proper type right away?
+
+// let zeroes = take_zeroes.parse_next(input)?;
+// let has_zeroes = zeroes.len() > 0;
+
+// let b = match dec_uint.parse_next(input) {
+//     Ok(a) => Ok(a),
+//     Err(a) => todo!(),
+// }
+
+// let digits = digit0.parse_next(input)?;
+
+// PResult::ok(&mut input)
+
 fn parse_footnote_record(input: &mut &str) -> PResult<DayValidityFootnote> {
     (
         '#',
-        dec_uint,
+        dec_uint_leading,
         line_ending,
         repeat(1.., parse_single_day),
         line_ending,
@@ -85,13 +134,13 @@ fn parse_header(input: &mut &str) -> PResult<Header> {
         delimited(
             '@',
             (
-                dec_uint,
+                dec_uint_leading,
                 ',',
                 parse_date,
                 ',',
                 parse_date,
                 ',',
-                dec_uint,
+                dec_uint_leading,
                 ',',
                 take_till(1.., |a: char| a.is_newline()),
             ),
@@ -122,7 +171,7 @@ fn parse_platform_info(input: &mut &str) -> PResult<PlatformInfo> {
             opt(take_while(1.., ('-', AsChar::is_alphanum))),
             multispace0,
             seperator,
-            dec_uint::<_, u64, _>,
+            dec_uint_leading::<u64>,
             opt(line_ending), // (take_while(1.., |c| !AsChar::is_newline(c)),),
         ),
     )
@@ -497,8 +546,8 @@ fn parse_arrival(input: &mut &str) -> PResult<TimetableEntry> {
 #[derive(PartialEq, Debug, Serialize, Eq, Clone)]
 pub struct TransitMode {
     mode: String,
-    first_stop: i32,
-    last_stop: i32,
+    first_stop: u32,
+    last_stop: u32,
 }
 
 fn till_comma<'a>(input: &mut &'a str) -> PResult<&'a str> {
@@ -511,7 +560,15 @@ fn untill_newline<'a>(input: &mut &'a str) -> PResult<&'a str> {
 
 //&IC ,001,005
 fn parse_transit_mode(input: &mut &str) -> PResult<TransitMode> {
-    ("&", till_comma, ",", dec_uint, ",", dec_uint, IFF_NEWLINE)
+    (
+        "&",
+        till_comma,
+        ",",
+        dec_uint_leading,
+        ",",
+        dec_uint_leading,
+        IFF_NEWLINE,
+    )
         .parse_next(input)
         .map(|seq| TransitMode {
             mode: seq.1.trim().to_owned(),
@@ -532,16 +589,16 @@ fn empty_str_to_none(a: &str) -> Option<&str> {
 fn parse_ride_id(input: &mut &str) -> PResult<RideId> {
     (
         '%',
-        dec_uint,
+        dec_uint_leading,
         ',',
-        dec_uint,
+        dec_uint_leading,
         ',',
-        opt(dec_uint),
+        opt(dec_uint_leading),
         space0,
         ',',
-        dec_uint,
+        dec_uint_leading,
         ',',
-        dec_uint,
+        dec_uint_leading,
         ',',
         untill_newline,
         IFF_NEWLINE,
@@ -560,6 +617,7 @@ fn parse_ride_id(input: &mut &str) -> PResult<RideId> {
 #[cfg(test)]
 mod test_rideid_parse {
     use super::*;
+    use pretty_assertions::assert_eq;
 
     #[test]
     fn plain() {
@@ -578,20 +636,30 @@ mod test_rideid_parse {
 }
 
 fn parse_day_footnote(input: &mut &str) -> PResult<Footnote> {
-    preceded('-', (dec_uint, ',', dec_uint, ',', dec_uint, line_ending))
-        .map(|seq| Footnote {
-            footnote: seq.0,
-            first_stop: seq.2,
-            last_stop: seq.4,
-        })
-        .parse_next(input)
+    preceded(
+        '-',
+        (
+            dec_uint_leading,
+            ',',
+            dec_uint_leading,
+            ',',
+            dec_uint_leading,
+            line_ending,
+        ),
+    )
+    .map(|seq| Footnote {
+        footnote: seq.0,
+        first_stop: seq.2,
+        last_stop: seq.4,
+    })
+    .parse_next(input)
 }
 
 fn parse_record(input: &mut &str) -> PResult<Record> {
     preceded(
         '#',
         (
-            dec_uint,
+            dec_uint_leading,
             line_ending,
             repeat(0.., parse_ride_id),
             parse_day_footnote,
@@ -628,7 +696,7 @@ mod test_record {
     use crate::{
         dayoffset::DayOffset,
         iff::{
-            parsing::{RideId, TimetableEntry, TransitMode},
+            parsing::{dec_uint_leading, RideId, TimetableEntry, TransitMode},
             PlatformInfo, Ride, StopKind,
         },
     };
@@ -756,9 +824,7 @@ mod test_record {
 
     #[test]
     fn test_record_parse() -> TestResult {
-        let record = parse_record
-            .parse(include_str!("./testdata/record1"))
-            .unwrap();
+        let record = parse_record.parse(include_str!("./testdata/record1"))?;
 
         assert_eq!(record.id, 2);
 
@@ -838,5 +904,42 @@ mod test_record {
         parse_record.parse(input).map_err(|e| e.to_string())?;
 
         Ok(())
+    }
+
+    #[test]
+    fn uint_content() {
+        let out: u32 = (dec_uint_leading)
+            .parse("123")
+            .map_err(|e| e.to_string())
+            .unwrap();
+
+        assert_eq!(out, 123);
+    }
+
+    #[test]
+    fn uint_leading_content() {
+        let out: u32 = (dec_uint_leading)
+            .parse("000123")
+            .map_err(|e| e.to_string())
+            .unwrap();
+
+        assert_eq!(out, 123);
+    }
+
+    #[test]
+    fn uint_leading_empty() {
+        let out: u32 = (dec_uint_leading)
+            .parse("000000")
+            .map_err(|e| e.to_string())
+            .unwrap();
+
+        assert_eq!(out, 0);
+    }
+
+    #[test]
+    fn uint_leading_none() {
+        let out: Result<u32, String> = (dec_uint_leading).parse("").map_err(|e| e.to_string());
+
+        assert!(out.is_err())
     }
 }

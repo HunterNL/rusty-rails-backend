@@ -1596,7 +1596,7 @@ dependencies = [
  "testresult",
  "thiserror",
  "tokio",
- "winnow",
+ "winnow 0.6.8",
  "zip",
 ]
 
@@ -1957,7 +1957,7 @@ dependencies = [
  "serde",
  "serde_spanned",
  "toml_datetime",
- "winnow",
+ "winnow 0.5.40",
 ]
 
 [[package]]
@@ -2343,6 +2343,15 @@ name = "winnow"
 version = "0.5.40"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f593a95398737aeed53e489c785df13f3618e41dbcd6718c6addbf1395aa6876"
+dependencies = [
+ "memchr",
+]
+
+[[package]]
+name = "winnow"
+version = "0.6.8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c3c52e9c97a68071b23e836c9380edae937f17b9c4667bd021973efc689f618d"
 dependencies = [
  "memchr",
 ]
