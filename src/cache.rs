@@ -16,53 +16,6 @@ pub struct Cache {
     base_dir: PathBuf,
 }
 
-pub trait SourceAsync<E> {
-    async fn get_async(&self) -> Result<Vec<u8>, E>;
-}
-
-pub trait Source<E> {
-    fn get(&self) -> Result<Vec<u8>, E>;
-}
-
-// impl CacheSourceAsync for dyn Fn() -> dyn Future<Output = Result<Vec<u8>, anyhow::Error>> {
-//     async fn get_async(&self) -> Result<Vec<u8>, anyhow::Error> {
-//         (*self)()
-//     }
-// }
-
-// impl<T: Send + Sync + 'static> CacheSourceAsync for T
-// where
-//     T: Fn() -> Result<Vec<u8>, anyhow::Error> + Send + Sync + 'static,
-// {
-//     async fn get_async(&self) -> Result<Vec<u8>, anyhow::Error> {
-//         self()
-//     }
-// }
-impl<E, F, Fut> SourceAsync<E> for F
-where
-    F: Fn() -> Fut,
-    Fut: Future<Output = Result<Vec<u8>, E>>,
-{
-    async fn get_async(&self) -> Result<Vec<u8>, E> {
-        self().await
-    }
-}
-
-impl<E, F> Source<E> for F
-where
-    F: Fn() -> Result<Vec<u8>, E>,
-{
-    fn get(&self) -> Result<Vec<u8>, E> {
-        self()
-    }
-}
-
-// impl<E> CacheSource<E> for dyn Fn() -> Result<Vec<u8>, E> {
-//     fn get(&self) -> Result<Vec<u8>, E> {
-//         self()
-//     }
-// }
-
 #[derive(thiserror::Error, Debug)]
 pub enum CacheError<E>
 where
@@ -85,18 +38,18 @@ impl Cache {
     }
 
     #[allow(dead_code)]
-    pub fn ensure<S, E>(&self, source: S, output_path: &Path) -> Result<Action, CacheError<E>>
-    where
-        S: Source<E>,
-        // E: Error + Send + Sync + 'static,
-    {
+    pub fn ensure<E>(
+        &self,
+        source: impl Fn() -> Result<Vec<u8>, E>,
+        output_path: &Path,
+    ) -> Result<Action, CacheError<E>> {
         let file_path = self.base_dir.join(output_path);
 
         if file_path.exists() {
             return Ok(Action::Skipped);
         }
 
-        let content = source.get().map_err(CacheError::SourceError)?;
+        let content = source().map_err(CacheError::SourceError)?;
 
         let mut file = File::create(&file_path).map_err(CacheError::IOError)?;
         file.write_all(&content).map_err(CacheError::IOError)?;
@@ -104,14 +57,13 @@ impl Cache {
         Ok(Action::Updated)
     }
 
-    pub async fn ensure_async<S, E>(
+    pub async fn ensure_async<E, F>(
         &self,
-        source: S,
+        source: impl Fn() -> F,
         output_path: impl AsRef<Path>,
     ) -> Result<Action, CacheError<E>>
     where
-        S: SourceAsync<E>,
-        // E: Error + Send + Sync + 'static,
+        F: Future<Output = Result<Vec<u8>, E>>, // E: Error + Send + Sync + 'static,
     {
         let file_path = self.base_dir.join(output_path);
 
@@ -119,7 +71,7 @@ impl Cache {
             return Ok(Action::Skipped);
         };
 
-        let content = source.get_async().await.map_err(CacheError::SourceError)?;
+        let content = source().await.map_err(CacheError::SourceError)?;
 
         let mut file = File::create(&file_path).map_err(CacheError::IOError)?;
         file.write_all(&content).map_err(CacheError::IOError)?;

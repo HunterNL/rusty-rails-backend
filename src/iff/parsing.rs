@@ -45,18 +45,6 @@ fn parse_single_day(input: &mut &str) -> PResult<bool> {
     one_of(['0', '1']).map(|char| char == '1').parse_next(input)
 }
 
-// fn take_zeroes<'a>(input: &mut &'a str) -> PResult<&'a str> {
-//     take_while(0.., '0').parse_next(input)
-// }
-
-// fn parse_uint_leading<'s, U: Uint, A>(input: &mut &'s str) -> PResult<&'s str> {
-//     digit1.parse_next(input)
-// }
-
-// fn skip_zeroes(input: &mut &str) -> PResult<&str> {
-
-// // }
-
 fn dec_uint_leading<Output: Uint + Clone>(input: &mut &str) -> PResult<Output> {
     alt((
         (take_while(0.., '0'), dec_uint).map(|a| a.1),
@@ -66,29 +54,6 @@ fn dec_uint_leading<Output: Uint + Clone>(input: &mut &str) -> PResult<Output> {
     ))
     .parse_next(input)
 }
-
-// fn get_uint_as_trait<U: Uint>() -> U {
-//     let var_name = 0 as U;
-//     var_name
-// }
-
-// fn foo() {
-//     let a: u8 = get_uint_as_trait();
-//     let b = a;
-// }
-// TODO, pass 0 as proper type right away?
-
-// let zeroes = take_zeroes.parse_next(input)?;
-// let has_zeroes = zeroes.len() > 0;
-
-// let b = match dec_uint.parse_next(input) {
-//     Ok(a) => Ok(a),
-//     Err(a) => todo!(),
-// }
-
-// let digits = digit0.parse_next(input)?;
-
-// PResult::ok(&mut input)
 
 fn parse_footnote_record(input: &mut &str) -> PResult<DayValidityFootnote> {
     (

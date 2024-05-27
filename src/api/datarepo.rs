@@ -211,11 +211,7 @@ impl DataRepo {
     }
 
     pub fn links(&self) -> &[Link] {
-        &self.links //[0..1]
-                    // .iter()
-                    // .filter(|link| link.link_code() == LinkCode("ac".to_owned(), "bkl".to_owned()))
-                    // .collect::<Vec<Link>>()
-                    // .as_slice()
+        &self.links
     }
 
     pub fn stations(&self) -> &[Station] {

@@ -69,18 +69,6 @@ impl PartialEq for Link {
 }
 
 impl Link {
-    // fn from(&self) -> &str {
-    //     &self.from
-    // }
-
-    // fn to(&self) -> &str {
-    //     &self.to
-    // }
-
-    // fn path(&self) -> &Path {
-    //     &self.path
-    // }
-
     pub fn link_code(&self) -> LinkCode {
         LinkCode(self.from.clone(), self.to.clone())
     }
@@ -165,6 +153,13 @@ impl Link {
     }
 }
 
+#[derive(Debug, Serialize, Clone)]
+struct PathPoint {
+    coordinates: Coords2D,
+    #[serde(skip_serializing)]
+    start_offset: f64,
+}
+
 #[derive(Deserialize, Debug)]
 struct Properties {
     from: String,
@@ -192,30 +187,9 @@ struct Path {
 
 impl Path {
     fn new_from_coords(coordinates: &[Coords2D]) -> Self {
-        let distances: Vec<(usize, f64)> = coordinates
+        let distances = coordinates
             .windows(2)
-            .map(|slice| great_circle_distance(&slice[0], &slice[1]))
-            .enumerate()
-            .collect();
-
-        // for a in coordinates {
-        //     println!("{:?}", a);
-        // }
-        // println!("{:?}", distances);
-
-        // let mut dist: f32 = 0f32;
-
-        // points
-        //     .iter()
-        //     .enumerate()
-        //     .skip(1)
-        //     .for_each(|(index, current)| {
-        //         let previous = points.get(index - 1).unwrap(); // As long as we skip the first entry this is safe
-        //         let current_distance = previous.start_offset
-        //             + great_circle_distance(&current.coordinates, &previous.coordinates);
-
-        //         points.get_mut(index).unwrap().start_offset = current_distance
-        //     });
+            .map(|slice| great_circle_distance(&slice[0], &slice[1]));
 
         let mut points: Vec<PathPoint> = coordinates
             .iter()
@@ -226,27 +200,11 @@ impl Path {
             .collect();
 
         let mut sum = 0f64;
-        for distance in distances {
-            sum += distance.1;
-            points.get_mut(distance.0 + 1).unwrap().start_offset = sum;
-
-            // println!("Setting index {} to {}", distance.0 + 1, sum);
+        for (index, distance) in distances.enumerate() {
+            sum += distance;
+            points.get_mut(index + 1).unwrap().start_offset = sum;
         }
 
-        // coordinates
-        //     .windows(2)
-        //     .enumerate()
-        //     .for_each(|(index, coords)| {
-        //         points.get_mut(index).unwrap().start_offset = dist;
-
-        //         dist += great_circle_distance(&coords[0], &coords[1]);
-        //     });
-
-        // let total_length = path_length_m(coordinates);
         Self { _len: sum, points }
     }
-
-    // pub fn len(&self) -> f64 {
-    //     self.len
-    // }
 }
