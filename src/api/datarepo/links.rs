@@ -1,8 +1,8 @@
+use ordered_float::{Float, OrderedFloat};
+use serde::{Deserialize, Serialize};
 use std::{fs::File, io::BufReader};
 
-use serde::{Deserialize, Serialize};
-
-use super::LinkCode;
+use super::{stations::Station, LinkCode};
 
 pub fn extract_links(file: &File) -> Vec<Link> {
     let reader = BufReader::new(file);
@@ -33,22 +33,21 @@ pub fn extract_links(file: &File) -> Vec<Link> {
         .collect()
 }
 
-#[derive(Deserialize, Serialize, Debug, Clone, Copy, PartialEq)]
+#[derive(Deserialize, Serialize, Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Coords2D {
     // #[serde(serialize_with = "bin_float")]
-    longitude: f64, // Do not change the order, matters for Deserialize as it's parsing an array of 2 numbers into this struct
+    longitude: OrderedFloat<f64>, // Do not change the order, matters for Deserialize as it's parsing an array of 2 numbers into this struct
     // #[serde(serialize_with = "bin_float")]
-    latitude: f64,
+    latitude: OrderedFloat<f64>,
 }
-
-impl Eq for Coords2D {}
 
 impl Coords2D {
     pub fn new(longitude: f64, latitude: f64) -> Self {
-        // longitude.
+        debug_assert!(longitude.is_finite());
+        debug_assert!(latitude.is_finite());
         Self {
-            longitude,
-            latitude,
+            longitude: OrderedFloat(longitude),
+            latitude: OrderedFloat(latitude),
         }
     }
 }
@@ -57,8 +56,8 @@ impl Coords2D {
 #[derive(Debug, Serialize, Clone)]
 pub struct Link {
     // id: u32,
-    from: String,
-    to: String,
+    from: Station,
+    to: Station,
     path: Path,
 }
 
@@ -82,72 +81,20 @@ fn great_circle_distance(coords1: &Coords2D, coords2: &Coords2D) -> f64 {
     let radius: f64 = 6371f64; // km
     let p: f64 = std::f64::consts::PI / 180f64;
 
-    let a = 0.5f64 - ((coords2.latitude - coords1.latitude) * p).cos() / 2f64
+    let a = OrderedFloat(0.5f64) - ((coords2.latitude - coords1.latitude) * p).cos() / 2f64
         + (coords1.latitude * p).cos()
             * (coords2.latitude * p).cos()
-            * (1f64 - ((coords2.longitude - coords1.longitude) * p).cos())
-            / 2f64;
+            * (OrderedFloat(1f64) - ((coords2.longitude - coords1.longitude) * p).cos())
+            / OrderedFloat(2f64);
 
-    2f64 * radius * a.sqrt().asin()
-
-    // return 2 * r * Math.asin(Math.sqrt(a));
-}
-
-// fn great_circle_distance(coord1: &Coords2D, coord2: &Coords2D) -> f32 {
-//     let p = std::f32::consts::PI / 180f32;
-//     // var p = 0.017453292519943295 // Math.PI / 180
-//     // var c = Math.cos
-//     let a = 0.5f32 - ((coord2.lat - coord1.lat).cos() * p) / 2f32
-//         + (coord1.lat * p).cos()
-//             * (coord2.lat * p).cos()
-//             * (1f32 - ((coord2.lon - coord1.lon) * p).cos())
-//             / 2f32;
-
-//     a.sqrt().asin() * EARTH_RADIUS // 2 * R; R = 6371 km
-// }
-
-// fn path_length_m(path: &[Coords2D]) -> f64 {
-//     path.windows(2).fold(0f64, |acc, cur| {
-//         acc + great_circle_distance(&cur[0], &cur[1])
-//     })
-// }
-
-// fn path_waypoints(path: &[Coords2D]) -> Vec<f64> {
-//     path.windows(2)
-//         .scan(0f64, |state, cur| {
-//             let out = Some(*state);
-
-//             *state += great_circle_distance(&cur[0], &cur[1]);
-
-//             out
-//         })
-//         .collect()
-
-//     // path.windows(2).for_each(|(left,right)| {
-
-//     // })
-// }
-
-// fn bin_float<S>(f: &f64, s: S) -> Result<S::Ok, S::Error>
-// where
-//     S: Serializer,
-// {
-//     s.serialize_bytes((*f as f32).to_le_bytes().as_slice())
-// }
-
-/// A point on a Path
-#[derive(Debug, Serialize, Clone)]
-struct PathPoint {
-    coordinates: Coords2D,
-    #[serde(skip_serializing)]
-    start_offset: f64,
+    (OrderedFloat(2f64) * radius * a.sqrt().asin()).into_inner()
 }
 
 impl Link {
     fn new_from_json_link(json: &JsonLink) -> Self {
         Self {
-            from: json.properties.from.clone(),
-            to: json.properties.to.clone(),
+            from: Station::from_code(&json.properties.from),
+            to: Station::from_code(&json.properties.to),
             path: Path::new_from_coords(&json.geometry.coordinates),
         }
     }

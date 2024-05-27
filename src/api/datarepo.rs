@@ -28,7 +28,7 @@ pub struct DataRepo {
 
 /// Key to identify links, looking up links with the waypoint identifiers the wrong way around should return a corrected Link
 #[derive(Eq, Hash, PartialEq)]
-pub struct LinkCode(String, String);
+pub struct LinkCode(Station, Station);
 
 trait LinkMap {
     fn get_undirected(&self, code: &LinkCode) -> Option<(&Link, bool)>;
@@ -71,7 +71,7 @@ fn leg_codes(leg: &LegKind) -> Option<Vec<LinkCode>> {
                 .chain(iter::once(to))
                 .collect::<Vec<&String>>()
                 .windows(2)
-                .map(|slice| LinkCode(slice[0].to_string(), slice[1].to_string()))
+                .map(|slice| LinkCode(Station::from_code(slice[0]), Station::from_code(slice[1])))
                 .collect()
         }),
     }
@@ -115,14 +115,14 @@ impl DataRepo {
         let stations_file = File::open(cache_dir.join("remote").join("stations.json"))
             .expect("To find stations file");
 
+        let stations = extract_stations(&stations_file);
+        let station_codes: HashSet<String> = stations.iter().map(Station::code).collect();
+
         let links: Vec<Link> = extract_links(&route_file);
         let link_map: HashMap<LinkCode, Link> = links
             .iter()
             .map(|link| (link.link_code(), link.clone()))
             .collect();
-        let stations = extract_stations(&stations_file);
-
-        let station_codes: HashSet<String> = stations.iter().map(|s| s.code.clone()).collect();
 
         let duration = iff
             .timetable()

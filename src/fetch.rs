@@ -23,7 +23,7 @@ fn print_cacheresult<E: Display>(res: Result<Action, CacheError<E>>) {
 pub async fn fetch(config: AppConfig) -> Result<(), anyhow::Error> {
     let storage_dir = config.cache_dir.join("remote");
 
-    if config.cache_dir.extension().is_some() {
+    if config.cache_dir.is_file() {
         return Err(anyhow!("Expected cache_dir to be a directory"));
     }
 
