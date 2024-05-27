@@ -14,12 +14,13 @@ use crate::{
     iff::{self, Iff, Leg, LegKind, Record, Ride},
 };
 
-use self::{links::Link, stations::Station};
+use self::links::Link;
+pub use self::stations::Station;
 
 /// A master container for all data, this is the struct eventually passed to the server
 pub struct DataRepo {
     links: Vec<Link>,
-    stations: Vec<stations::Station>,
+    stations: HashMap<String, stations::Station>,
     // rides: Vec<Record>,
     // link_map: HashMap<LinkCode, Link>,
     iff: Iff,
@@ -28,7 +29,7 @@ pub struct DataRepo {
 
 /// Key to identify links, looking up links with the waypoint identifiers the wrong way around should return a corrected Link
 #[derive(Eq, Hash, PartialEq)]
-pub struct LinkCode(Station, Station);
+pub struct LinkCode(String, String);
 
 trait LinkMap {
     fn get_undirected(&self, code: &LinkCode) -> Option<(&Link, bool)>;
@@ -69,9 +70,9 @@ fn leg_codes(leg: &LegKind) -> Option<Vec<LinkCode>> {
             iter::once(from)
                 .chain(waypoints.iter())
                 .chain(iter::once(to))
-                .collect::<Vec<&String>>()
-                .windows(2)
-                .map(|slice| LinkCode(Station::from_code(slice[0]), Station::from_code(slice[1])))
+                .collect::<Vec<&_>>()
+                .array_windows()
+                .map(|&[a, b]| LinkCode(a.clone(), b.clone()))
                 .collect()
         }),
     }
@@ -79,11 +80,11 @@ fn leg_codes(leg: &LegKind) -> Option<Vec<LinkCode>> {
 
 fn leg_has_complete_data(
     leg: &Leg,
-    station_codes: &HashSet<String>,
+    stations: &HashMap<String, Station>,
     links: &HashMap<LinkCode, Link>,
 ) -> bool {
     match &leg.kind {
-        LegKind::Stationary(code, _) => station_codes.contains(code),
+        LegKind::Stationary(code, _) => stations.contains_key(code),
         LegKind::Moving(_from, _to, _waypoints) => leg_codes(&leg.kind)
             .iter()
             .all(|leg_code| leg_code.iter().all(|code| links.contains_undirected(code))),
@@ -92,13 +93,13 @@ fn leg_has_complete_data(
 
 fn has_complete_data(
     record: &Record,
-    station_codes: &HashSet<String>,
+    stations: &HashMap<String, Station>,
     links: &HashMap<LinkCode, Link>,
 ) -> bool {
     record
         .generate_legs()
         .iter()
-        .all(|leg| leg_has_complete_data(leg, station_codes, links))
+        .all(|leg| leg_has_complete_data(leg, stations, links))
 }
 
 impl DataRepo {
@@ -116,9 +117,8 @@ impl DataRepo {
             .expect("To find stations file");
 
         let stations = extract_stations(&stations_file);
-        let station_codes: HashSet<String> = stations.iter().map(Station::code).collect();
 
-        let links: Vec<Link> = extract_links(&route_file);
+        let links: Vec<Link> = extract_links(&route_file, &stations);
         let link_map: HashMap<LinkCode, Link> = links
             .iter()
             .map(|link| (link.link_code(), link.clone()))
@@ -145,7 +145,7 @@ impl DataRepo {
         println!("Pre data filter ride #: {}", iff.timetable().rides.len());
         iff.timetable_mut()
             .rides
-            .retain(|ride| has_complete_data(ride, &station_codes, &link_map));
+            .retain(|ride| has_complete_data(ride, &stations, &link_map));
 
         let rides: Vec<iff::Ride> = iff
             .timetable()
@@ -214,7 +214,7 @@ impl DataRepo {
         &self.links
     }
 
-    pub fn stations(&self) -> &[Station] {
+    pub fn stations(&self) -> &HashMap<String, Station> {
         &self.stations
     }
 

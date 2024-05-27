@@ -13,8 +13,8 @@ use super::links::Coords2D;
 pub struct Station(Arc<InnerStation>);
 
 impl Station {
-    pub fn code(&self) -> String {
-        self.0.code.clone()
+    pub fn code(&self) -> &str {
+        &self.0.code
     }
     pub fn name(&self) -> String {
         self.0.name.clone()
@@ -45,41 +45,16 @@ pub struct InnerStation {
     pub position: Coords2D,
 }
 
-lazy_static::lazy_static! {
-    static ref KNOWN_STATIONS: RwLock<HashMap<String, Arc<InnerStation>>> = RwLock::new(HashMap::default());
-}
-
 impl Station {
-    fn new_from_json(json: StationJSON) -> Station {
+    fn new_from_json(json: StationJSON) -> (String, Station) {
         let code = json.code.to_lowercase();
 
-        if let Some(arc) = KNOWN_STATIONS.read().unwrap().get(&code) {
-            Station(arc.clone())
-        } else {
-            let arc = Arc::new(InnerStation {
-                code: code.clone(),
-                name: json.namen.lang.clone(),
-                position: Coords2D::new(json.lng, json.lat),
-            });
-            let inner = KNOWN_STATIONS
-                .write()
-                .unwrap()
-                .entry(code)
-                .or_insert(arc)
-                .clone();
-            Station(inner)
-        }
-    }
-
-    pub fn from_code(code: &str) -> Station {
-        Station(
-            KNOWN_STATIONS
-                .read()
-                .unwrap()
-                .get(code)
-                .expect("Tried to find unknown station")
-                .clone(),
-        )
+        let station = Station(Arc::new(InnerStation {
+            code: code.clone(),
+            name: json.namen.lang.clone(),
+            position: Coords2D::new(json.lng, json.lat),
+        }));
+        (code, station)
     }
 }
 
@@ -96,7 +71,7 @@ struct StationJSON {
     lng: f64,
 }
 
-pub fn extract_stations(file: &File) -> Vec<Station> {
+pub fn extract_stations(file: &File) -> HashMap<String, Station> {
     let reader = BufReader::new(file);
     let mut json: serde_json::Value = serde_json::from_reader(reader).expect("valid parse");
 

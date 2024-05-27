@@ -1,3 +1,5 @@
+#![feature(array_windows)]
+
 mod access;
 mod api;
 mod cache;

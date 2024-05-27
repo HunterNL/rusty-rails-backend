@@ -29,6 +29,7 @@ use crate::{
 };
 
 use self::datarepo::DataRepo;
+pub use self::datarepo::Station;
 
 pub struct ApiObject<'a, T: ?Sized>(&'a T);
 
@@ -154,8 +155,8 @@ pub fn serve(config: AppConfig) -> Result<(), anyhow::Error> {
 
 fn prepare_files(data: &DataRepo, http_cache_dir: &Path) -> Result<(), anyhow::Error> {
     let link_file_content = serde_json::to_vec(data.links()).expect("should serialize links");
-    let station_file_content =
-        serde_json::to_vec(data.stations()).expect("should serialize stations");
+    let stations: Vec<_> = data.stations().values().cloned().collect();
+    let station_file_content = serde_json::to_vec(&stations).expect("should serialize stations");
 
     fs::create_dir_all(http_cache_dir).expect("Http cache dir to exist or be created");
     fs::write(

@@ -1,10 +1,10 @@
 use ordered_float::{Float, OrderedFloat};
 use serde::{Deserialize, Serialize};
-use std::{fs::File, io::BufReader};
+use std::{collections::HashMap, fs::File, io::BufReader};
 
 use super::{stations::Station, LinkCode};
 
-pub fn extract_links(file: &File) -> Vec<Link> {
+pub fn extract_links(file: &File, stations: &HashMap<String, Station>) -> Vec<Link> {
     let reader = BufReader::new(file);
 
     // Parse into serde_json::Value first to easily navigate down the json data
@@ -29,7 +29,7 @@ pub fn extract_links(file: &File) -> Vec<Link> {
 
     links
         .into_iter()
-        .map(|l| Link::new_from_json_link(&l))
+        .map(|l| Link::new_from_json_link(&l, &stations))
         .collect()
 }
 
@@ -69,7 +69,7 @@ impl PartialEq for Link {
 
 impl Link {
     pub fn link_code(&self) -> LinkCode {
-        LinkCode(self.from.clone(), self.to.clone())
+        LinkCode(self.from.code().to_owned(), self.to.code().to_owned())
     }
 }
 
@@ -91,10 +91,12 @@ fn great_circle_distance(coords1: &Coords2D, coords2: &Coords2D) -> f64 {
 }
 
 impl Link {
-    fn new_from_json_link(json: &JsonLink) -> Self {
+    fn new_from_json_link(json: &JsonLink, stations: &HashMap<String, Station>) -> Self {
+        let Properties { from, to, .. } = &json.properties;
+
         Self {
-            from: Station::from_code(&json.properties.from),
-            to: Station::from_code(&json.properties.to),
+            from: stations.get(from).expect("Not found").clone(),
+            to: stations.get(to).expect("Not found").clone(),
             path: Path::new_from_coords(&json.geometry.coordinates),
         }
     }
