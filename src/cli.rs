@@ -17,7 +17,10 @@ pub struct Options {
 #[derive(Subcommand)]
 pub enum SubCommand {
     Fetch,
-    Serve,
+    Serve {
+        #[arg(long)]
+        autofetch: bool,
+    },
 }
 
 pub fn get_cli_args() -> Options {

@@ -20,7 +20,7 @@ fn print_cacheresult<E: Display>(res: Result<Action, CacheError<E>>) {
 }
 
 #[tokio::main]
-pub async fn fetch(config: AppConfig) -> Result<(), anyhow::Error> {
+pub async fn fetch(config: &AppConfig) -> Result<(), anyhow::Error> {
     let storage_dir = config.cache_dir.join("remote");
 
     if config.cache_dir.extension().is_some() {
@@ -35,8 +35,8 @@ pub async fn fetch(config: AppConfig) -> Result<(), anyhow::Error> {
 
     print_cacheresult(timetable_result);
 
-    if let Some(key) = config.ns_api_key {
-        let ns = ns_api::NsApi::new(key);
+    if let Some(key) = &config.ns_api_key {
+        let ns = ns_api::NsApi::new(key.clone());
 
         let a = cache
             .ensure_async(|| ns.fetch_routes(), ROUTE_FILEPATH)

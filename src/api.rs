@@ -24,6 +24,7 @@ use crate::{
         active_rides::active_rides_endpoint, all_rides::all_rides_endpoint,
         find_path_endpoint::route_finding_endpoint,
     },
+    fetch,
     iff::{Leg, LegKind, Record, Ride, StopKind},
     AppConfig,
 };
@@ -131,7 +132,11 @@ const HTTP_CACHE_SUBDIR: &str = "http";
 const HTTP_CACHE_STATION_PATH: &str = "stations.json";
 const HTTP_CACHE_LINK_PATH: &str = "links.json";
 
-pub fn serve(config: AppConfig) -> Result<(), anyhow::Error> {
+pub fn serve(config: &AppConfig, autofetch: bool) -> Result<(), anyhow::Error> {
+    if autofetch {
+        fetch::fetch(config)?
+    }
+
     let http_dir = config.cache_dir.join(HTTP_CACHE_SUBDIR);
     let data = datarepo::DataRepo::new(&config.cache_dir);
 
@@ -248,7 +253,7 @@ impl PathfindingArguments {
 
 #[tokio::main]
 async fn start_server(
-    config: AppConfig,
+    config: &AppConfig,
     data: DataRepo,
     ns_api: NsApi,
 ) -> Result<(), anyhow::Error> {

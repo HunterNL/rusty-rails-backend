@@ -43,7 +43,7 @@ fn main() -> Result<(), anyhow::Error> {
     };
 
     match cli_options.command {
-        cli::SubCommand::Fetch => fetch::fetch(config),
-        cli::SubCommand::Serve => api::serve(config),
+        cli::SubCommand::Fetch => fetch::fetch(&config),
+        cli::SubCommand::Serve { autofetch } => api::serve(&config, autofetch),
     }
 }
