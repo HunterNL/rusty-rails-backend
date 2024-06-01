@@ -4,7 +4,7 @@
 # Compile the app.
 FROM rust:1-slim as builder
 RUN apt-get update 
-RUN apt-get -y install libssl-dev pkg-config 
+RUN apt-get -y install libssl-dev pkg-config file
 WORKDIR /app
 COPY . .
 RUN cargo install --path . 
