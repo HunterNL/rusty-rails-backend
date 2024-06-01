@@ -9,7 +9,7 @@ use poem::{
     endpoint::StaticFileEndpoint,
     get,
     listener::TcpListener,
-    middleware::{AddData, Cors},
+    middleware::{AddData, CatchPanic, Cors},
     EndpointExt, Route, Server,
 };
 use serde::{ser::SerializeStruct, Deserialize, Serialize};
@@ -271,7 +271,8 @@ async fn start_server(
     let stations_endpoint = StaticFileEndpoint::new(https_serve_dir.join(HTTP_CACHE_STATION_PATH));
     let links_endpoint = StaticFileEndpoint::new(https_serve_dir.join(HTTP_CACHE_LINK_PATH));
 
-    let cors = Cors::new().allow_origins(["https://localhost:3000", "https://127.0.0.1:3000"]);
+    let cors = Cors::new().allow_origin(&config.cors_domain);
+    let catch_panic = CatchPanic::new();
 
     let app = Route::new()
         .at("/data/stations.json", get(stations_endpoint))
@@ -281,11 +282,13 @@ async fn start_server(
         .at("/api/rides_all", get(all_rides_endpoint))
         .with(AddData::new(Arc::new(data)))
         .with(AddData::new(Arc::new(ns_api)))
-        .with(cors);
+        .with(cors)
+        .with(catch_panic);
 
-    let server = Server::new(TcpListener::bind("localhost:9001"));
+    let server = Server::new(TcpListener::bind(&config.bind_addr));
 
-    println!("Server starting");
+    println!("CORS domains: {}", config.cors_domain);
+    println!("Server starting on {}", config.bind_addr);
 
     server
         .run_with_graceful_shutdown(

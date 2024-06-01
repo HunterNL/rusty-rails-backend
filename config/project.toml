@@ -1,2 +1,4 @@
 cache_dir = "./cache"
 allow_cache_overwrite = false
+cors_domain = "https://localhost:3000"
+bind_addr = "localhost:9001"

@@ -22,6 +22,8 @@ pub struct AppConfig {
     pub ns_api_key: Option<String>,
     pub cache_dir: PathBuf,
     pub allow_cache_overwrite: bool,
+    pub cors_domain: String,
+    pub bind_addr: String,
 }
 
 fn main() -> Result<(), anyhow::Error> {
@@ -31,16 +33,11 @@ fn main() -> Result<(), anyhow::Error> {
         .merge(Toml::file("./config/local.toml"))
         .merge(Env::prefixed("APP_")); // For deployment?
 
-    let config: AppConfig = config.extract().context("Parsing config files")?;
-
+    let mut config: AppConfig = config.extract().context("Parsing config files")?;
     let cli_options = cli::get_cli_args();
-    let cache_dir: PathBuf = cli_options.cache_dir.into();
 
-    let config: AppConfig = AppConfig {
-        cache_dir,
-        ns_api_key: config.ns_api_key,
-        allow_cache_overwrite: cli_options.allow_cache_overwrite,
-    };
+    config.allow_cache_overwrite = cli_options.allow_cache_overwrite;
+    config.cache_dir = cli_options.cache_dir.into();
 
     match cli_options.command {
         cli::SubCommand::Fetch => fetch::fetch(&config),
