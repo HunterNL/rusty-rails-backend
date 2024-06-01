@@ -4,7 +4,7 @@
 # Compile the app.
 FROM rust:1-bullseye as builder
 RUN apt-get update 
-RUN apt-get -y install libssl1.1 pkg-config 
+RUN apt-get -y install libssl1.1 pkg-config ca-certificates
 #RUN apt-get -y install libssl3  pkg-config 
 #RUN ln -s libssl.so.3 libssl.so
 RUN ldconfig 
