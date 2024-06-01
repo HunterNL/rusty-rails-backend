@@ -13,13 +13,13 @@ RUN cargo install --path .
 
 # -- Stage 2 -- #
 # Create the final environment with the compiled binary.
-FROM debian:12-slim
+FROM debian:bookworm-slim
 WORKDIR /root/
 # Copy the binary from the builder stage and set it as the default command.
 COPY --from=builder /usr/local/cargo/bin/rustyrails /usr/local/bin/
-RUN ls
-RUN ls /usr/local/bin
-RUN echo $PATH
+#RUN ls
+#RUN ls /usr/local/bin
+#RUN echo $PATH
 RUN chmod +x /usr/local/bin/rustyrails
 CMD ["/usr/local/bin/rustyrails","serve","--autofetch"]
 # CMD ["ls","-al","/usr/local/bin/rustyrails"]
