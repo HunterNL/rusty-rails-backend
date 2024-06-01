@@ -2,9 +2,10 @@
 
 # -- Stage 1 -- #
 # Compile the app.
-FROM rust:1-bookworm as builder
+FROM rust:1-bullseye as builder
 RUN apt-get update 
-RUN apt-get -y install libssl3  pkg-config 
+RUN apt-get -y install libssl1.1 pkg-config 
+#RUN apt-get -y install libssl3  pkg-config 
 #RUN ln -s libssl.so.3 libssl.so
 RUN ldconfig 
 #RUN apk update
@@ -15,7 +16,7 @@ RUN cargo install --path .
 
 # -- Stage 2 -- #
 # Create the final environment with the compiled binary.
-FROM debian:bookworm-slim
+FROM debian:bullseye-slim
 WORKDIR /root/
 # Copy the binary from the builder stage and set it as the default command.
 COPY --from=builder /usr/local/cargo/bin/rustyrails /usr/local/bin/
