@@ -7,7 +7,7 @@ mod fetch;
 mod iff;
 mod ndovloket_api;
 
-use std::path::PathBuf;
+use std::{env, path::PathBuf};
 
 use anyhow::Context;
 
@@ -33,6 +33,8 @@ fn main() -> Result<(), anyhow::Error> {
         .merge(Toml::file("./config/local.toml"))
         .merge(Env::prefixed("APP_")); // For deployment?
 
+    let cur = env::current_dir().unwrap();
+    println!("pwd: {}", cur.to_str().unwrap());
     let mut config: AppConfig = config.extract().context("Parsing config files")?;
     let cli_options = cli::get_cli_args();
 
