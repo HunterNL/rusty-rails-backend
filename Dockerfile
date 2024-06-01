@@ -2,7 +2,7 @@
 
 # -- Stage 1 -- #
 # Compile the app.
-FROM rust:1-slim as builder
+FROM rust:1-alpine as builder
 RUN apt-get update 
 RUN apt-get -y install libssl-dev pkg-config file
 WORKDIR /app
@@ -19,9 +19,9 @@ RUN ls
 RUN ls /usr/local/bin
 RUN echo $PATH
 RUN chmod +x /usr/local/bin/rustyrails
-# CMD ["/usr/local/bin/rustyrails","serve","--autofetch"]
+CMD ["/usr/local/bin/rustyrails","serve","--autofetch"]
 # CMD ["ls","-al","/usr/local/bin/rustyrails"]
 #CMD ["/usr/local/bin/rustyrails"]
-CMD ["file","/usr/local/bin/rustyrails"]
+# CMD ["file","/usr/local/bin/rustyrails"]
 # ENTRYPOINT [ "/usr/local/bin/rustyrails" ] 
 # serve --autofetch
