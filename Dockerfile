@@ -20,6 +20,7 @@ FROM debian:bullseye-slim
 WORKDIR /root/
 # Copy the binary from the builder stage and set it as the default command.
 COPY --from=builder /usr/local/cargo/bin/rustyrails /usr/local/bin/
+COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
 #RUN ls
 #RUN ls /usr/local/bin
 #RUN echo $PATH
