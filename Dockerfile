@@ -6,7 +6,7 @@ FROM rust:1-bookworm as builder
 RUN apt-get update 
 RUN apt-get -y install libssl3  pkg-config 
 #RUN ln -s libssl.so.3 libssl.so
-#RUN ldconfig 
+RUN ldconfig 
 #RUN apk update
 #RUN apk add openssl-dev musl-dev gcc
 WORKDIR /app
