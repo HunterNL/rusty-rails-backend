@@ -12,10 +12,11 @@ RUN cargo install --path .
 # -- Stage 2 -- #
 # Create the final environment with the compiled binary.
 FROM alpine
-# WORKDIR /root/
+WORKDIR /root/
 # Copy the binary from the builder stage and set it as the default command.
 COPY --from=builder /usr/local/cargo/bin/rustyrails /usr/local/bin/
 RUN ls
 RUN ls /usr/local/bin
 RUN echo $PATH
-CMD /usr/local/bin/rustyrails serve --autofetch
+CMD ls && pwd
+#CMD /usr/local/bin/rustyrails serve --autofetch
