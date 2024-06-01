@@ -79,6 +79,7 @@ impl NsApi {
     }
 
     pub async fn fetch_routes(&self) -> Result<Vec<u8>, ApiError> {
+        println!("{}", self.key);
         let url = API_HOST.to_owned() + ROUTE_PATH;
         let rb = self.start_request(url);
         let req = rb.build().map_err(ApiError::Network)?;
