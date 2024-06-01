@@ -1,5 +1,5 @@
 use anyhow::anyhow;
-use std::fmt::Display;
+use std::error::Error as StdError;
 
 use crate::{
     ndovloket_api::{self},
@@ -12,10 +12,10 @@ const TIMETABLE_PATH: &str = "ns-latest.zip";
 const STATION_FILEPATH: &str = "stations.json";
 const ROUTE_FILEPATH: &str = "route.json";
 
-fn print_cacheresult<E: Display>(res: Result<Action, CacheError<E>>) {
+fn print_cacheresult<E: StdError>(res: Result<Action, CacheError<E>>) {
     match res {
         Ok(ok) => println!("{ok:?}"),
-        Err(err) => print!("{err}"),
+        Err(err) => print!("{err:?}"),
     }
 }
 

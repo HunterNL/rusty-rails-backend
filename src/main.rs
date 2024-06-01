@@ -38,8 +38,8 @@ fn main() -> Result<(), anyhow::Error> {
     let mut config: AppConfig = config.extract().context("Parsing config files")?;
     let cli_options = cli::get_cli_args();
 
-    config.allow_cache_overwrite = cli_options.allow_cache_overwrite;
-    config.cache_dir = cli_options.cache_dir.into();
+    // config.allow_cache_overwrite = cli_options.allow_cache_overwrite;
+    // config.cache_dir = cli_options.cache_dir.into();
 
     match cli_options.command {
         cli::SubCommand::Fetch => fetch::fetch(&config),
