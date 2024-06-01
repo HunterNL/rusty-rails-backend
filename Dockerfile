@@ -3,10 +3,10 @@
 # -- Stage 1 -- #
 # Compile the app.
 FROM rust:1-slim as builder
-WORKDIR /app
-COPY . .
 RUN apt-get update 
 RUN apt-get -y install libssl-dev pkg-config 
+WORKDIR /app
+COPY . .
 RUN cargo install --path . 
 
 # -- Stage 2 -- #
@@ -18,5 +18,5 @@ COPY --from=builder /usr/local/cargo/bin/rustyrails /usr/local/bin/
 RUN ls
 RUN ls /usr/local/bin
 RUN echo $PATH
-CMD /usr/local/bin/rustyrails serve --autofetch
+CMD ["/usr/local/bin/rustyrails","serve","--autofetch"]
 #CMD /usr/local/bin/rustyrails serve --autofetch
