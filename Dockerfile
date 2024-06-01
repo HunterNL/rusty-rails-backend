@@ -2,18 +2,18 @@
 
 # -- Stage 1 -- #
 # Compile the app.
-FROM rust:1-alpine as builder
-#RUN apt-get update 
-#RUN apt-get -y install libssl-dev pkg-config file
-RUN apk update
-RUN apk add openssl-dev musl-dev gcc
+FROM rust:1-bookworm as builder
+RUN apt-get update 
+RUN apt-get -y install libssl-dev pkg-config 
+#RUN apk update
+#RUN apk add openssl-dev musl-dev gcc
 WORKDIR /app
 COPY . .
 RUN cargo install --path . 
 
 # -- Stage 2 -- #
 # Create the final environment with the compiled binary.
-FROM alpine
+FROM debian:12-slim
 WORKDIR /root/
 # Copy the binary from the builder stage and set it as the default command.
 COPY --from=builder /usr/local/cargo/bin/rustyrails /usr/local/bin/
