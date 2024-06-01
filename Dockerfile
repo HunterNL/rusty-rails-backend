@@ -20,5 +20,6 @@ RUN ls /usr/local/bin
 RUN echo $PATH
 RUN chmod +x /usr/local/bin/rustyrails
 # CMD ["/usr/local/bin/rustyrails","serve","--autofetch"]
-CMD ["ls","-al","/usr/local/bin"]
-#CMD /usr/local/bin/rustyrails serve --autofetch
+# CMD ["ls","-al","/usr/local/bin"]
+CMD ["/usr/local/bin/rustyrails"]
+# serve --autofetch
