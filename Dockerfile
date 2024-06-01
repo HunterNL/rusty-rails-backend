@@ -5,6 +5,8 @@
 FROM rust:1-alpine as builder
 #RUN apt-get update 
 #RUN apt-get -y install libssl-dev pkg-config file
+RUN apk update
+RUN apk add openssl-dev
 WORKDIR /app
 COPY . .
 RUN cargo install --path . 
