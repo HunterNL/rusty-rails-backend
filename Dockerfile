@@ -5,6 +5,7 @@
 FROM rust:1-slim as builder
 WORKDIR /app
 COPY . .
+RUN apt-get update
 RUN apt-get install pkg-config
 RUN cargo install --path . 
 
