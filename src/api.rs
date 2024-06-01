@@ -134,6 +134,7 @@ const HTTP_CACHE_LINK_PATH: &str = "links.json";
 
 pub fn serve(config: &AppConfig, autofetch: bool) -> Result<(), anyhow::Error> {
     if autofetch {
+        println!("Autofetching...");
         fetch::fetch(config)?
     }
 
