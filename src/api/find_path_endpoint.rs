@@ -20,7 +20,9 @@ pub async fn route_finding_endpoint(
     datarepo: Data<&Arc<DataRepo>>,
     query: poem::web::Query<PathfindingArguments>,
 ) -> Response {
-    query.validate();
+    query.validate(datarepo.0.stations());
+
+    println!("Request from: {} to: {}", query.from, query.to);
 
     let ns_data = ns_api
         .find_path(&TripAdviceArguments {

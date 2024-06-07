@@ -7,7 +7,7 @@ use std::{
 
 use chrono::{NaiveDate, NaiveTime};
 mod links;
-mod stations;
+pub mod stations;
 use crate::{
     api::datarepo::{links::extract_links, stations::extract_stations},
     dayoffset::DayOffset,
@@ -31,8 +31,10 @@ pub struct DataRepo {
 pub struct LinkCode(String, String);
 
 trait LinkMap {
+    #[allow(dead_code)]
     fn get_undirected(&self, code: &LinkCode) -> Option<(&Link, bool)>;
     fn contains_undirected(&self, code: &LinkCode) -> bool;
+    #[allow(dead_code)]
     fn contains_directed(&self, code: &LinkCode) -> bool;
 }
 

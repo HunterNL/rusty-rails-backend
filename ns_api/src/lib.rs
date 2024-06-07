@@ -56,7 +56,9 @@ mod response_data {
 
     #[derive(Deserialize, Debug, Serialize)]
     pub struct Response {
-        pub trips: Vec<Trip>,
+        pub trips: Option<Vec<Trip>>,
+        pub code: u32,
+        pub message: Option<String>,
     }
 }
 
@@ -140,6 +142,8 @@ impl NsApi {
         let byteslice = res.bytes().await.map_err(ApiError::Network)?;
 
         // let byteslice = TESTDATA;
+
+        println!("{}", String::from_utf8(byteslice.clone().into()).unwrap());
 
         let response_data: response_data::Response =
             serde_json::from_slice(&byteslice).map_err(ApiError::Parsing)?;

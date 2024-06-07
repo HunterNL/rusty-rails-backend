@@ -4,6 +4,7 @@ use std::{collections::HashSet, fs, path::Path, sync::Arc};
 
 use anyhow::{anyhow, Ok};
 
+use datarepo::stations::Station;
 use ns_api::NsApi;
 use poem::{
     endpoint::StaticFileEndpoint,
@@ -201,6 +202,7 @@ impl<'a> RoutePlannerResponse<'a> {
         let trips: Vec<_> = res
             .trips
             .iter()
+            .flatten()
             .map(|trip| RoutePlannerTrip {
                 legs: trip
                     .legs
@@ -241,12 +243,18 @@ struct PathfindingArguments {
 }
 
 impl PathfindingArguments {
-    fn validate_string(s: &str) -> bool {
-        s.len() <= 10 && s.chars().all(|c| c.is_ascii_alphabetic())
+    fn validate_string(s: &str, stations: &[Station]) -> bool {
+        s.len() < 50
+            && stations
+                .iter()
+                .any(|station| station.code.to_lowercase() == s.to_lowercase())
     }
 
-    pub fn validate(&self) {
-        if !Self::validate_string(&self.from) || !Self::validate_string(&self.to) {
+    pub fn validate(&self, stations: &[Station]) {
+        let val_a = Self::validate_string(&self.from, stations);
+        let val_b = Self::validate_string(&self.to, stations);
+
+        if !val_a || !val_b {
             panic!("Queries don't pass")
         }
     }
@@ -281,10 +289,10 @@ async fn start_server(
         .at("/api/activerides", get(active_rides_endpoint))
         .at("/api/find_route", get(route_finding_endpoint))
         .at("/api/rides_all", get(all_rides_endpoint))
-        .with(AddData::new(Arc::new(data)))
-        .with(AddData::new(Arc::new(ns_api)))
+        .with(catch_panic)
         .with(cors)
-        .with(catch_panic);
+        .with(AddData::new(Arc::new(data)))
+        .with(AddData::new(Arc::new(ns_api)));
 
     let server = Server::new(TcpListener::bind(&config.bind_addr));
 

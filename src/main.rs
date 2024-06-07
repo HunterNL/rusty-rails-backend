@@ -35,7 +35,7 @@ fn main() -> Result<(), anyhow::Error> {
 
     let cur = env::current_dir().unwrap();
     println!("pwd: {}", cur.to_str().unwrap());
-    let mut config: AppConfig = config.extract().context("Parsing config files")?;
+    let config: AppConfig = config.extract().context("Parsing config files")?;
     let cli_options = cli::get_cli_args();
 
     // config.allow_cache_overwrite = cli_options.allow_cache_overwrite;
