@@ -1,0 +1,34 @@
+{
+	"EVACode": "8400245",
+	"UICCode": "8400245",
+	"cdCode": 245,
+	"code": "GP",
+	"ingangsDatum": "2011-05-01",
+	"heeftFaciliteiten": true,
+	"heeftReisassistentie": true,
+	"heeftVertrektijden": true,
+	"land": "NL",
+	"lat": 51.4197235107422,
+	"lng": 5.55055570602417,
+	"radius": 200,
+	"naderenRadius": 1200,
+	"namen": {
+		"lang": "Geldrop",
+		"middel": "Geldrop",
+		"kort": "Geldrop"
+	},
+	"synoniemen": [],
+	"nearbyMeLocationId": {
+		"value": "GP",
+		"type": "stationV2"
+	},
+	"sporen": [
+		{
+			"spoorNummer": "1"
+		},
+		{
+			"spoorNummer": "2"
+		}
+	],
+	"stationType": "KNOOPPUNT_STOPTREIN_STATION"
+}
