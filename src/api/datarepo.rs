@@ -7,7 +7,7 @@ use std::{
 
 use chrono::{NaiveDate, NaiveTime};
 mod links;
-pub mod stations;
+mod stations;
 use crate::{
     api::datarepo::{links::extract_links, stations::extract_stations},
     dayoffset::DayOffset,

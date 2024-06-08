@@ -56,9 +56,7 @@ mod response_data {
 
     #[derive(Deserialize, Debug, Serialize)]
     pub struct Response {
-        pub trips: Option<Vec<Trip>>,
-        pub code: u32,
-        pub message: Option<String>,
+        pub trips: Vec<Trip>,
     }
 }
 

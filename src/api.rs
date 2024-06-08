@@ -4,7 +4,7 @@ use std::{collections::HashSet, fs, path::Path, sync::Arc};
 
 use anyhow::{anyhow, Ok};
 
-use datarepo::stations::Station;
+use find_path_endpoint::route_finding_endpoint;
 use ns_api::NsApi;
 use poem::{
     endpoint::StaticFileEndpoint,
@@ -21,10 +21,7 @@ mod all_rides;
 mod find_path_endpoint;
 
 use crate::{
-    api::{
-        active_rides::active_rides_endpoint, all_rides::all_rides_endpoint,
-        find_path_endpoint::route_finding_endpoint,
-    },
+    api::{active_rides::active_rides_endpoint, all_rides::all_rides_endpoint},
     fetch,
     iff::{Leg, LegKind, Record, Ride, StopKind},
     AppConfig,
@@ -202,7 +199,6 @@ impl<'a> RoutePlannerResponse<'a> {
         let trips: Vec<_> = res
             .trips
             .iter()
-            .flatten()
             .map(|trip| RoutePlannerTrip {
                 legs: trip
                     .legs
@@ -243,14 +239,11 @@ struct PathfindingArguments {
 }
 
 impl PathfindingArguments {
-    fn validate_string(s: &str, stations: &[Station]) -> bool {
-        s.len() < 50
-            && stations
-                .iter()
-                .any(|station| station.code.to_lowercase() == s.to_lowercase())
+    fn validate_string(s: &str, stations: &Arc<HashSet<Box<str>>>) -> bool {
+        s.len() < 50 && stations.contains(s)
     }
 
-    pub fn validate(&self, stations: &[Station]) {
+    pub fn validate(&self, stations: &Arc<HashSet<Box<str>>>) {
         let val_a = Self::validate_string(&self.from, stations);
         let val_b = Self::validate_string(&self.to, stations);
 
@@ -279,6 +272,11 @@ async fn start_server(
     let https_serve_dir = config.cache_dir.join(HTTP_CACHE_SUBDIR);
     let stations_endpoint = StaticFileEndpoint::new(https_serve_dir.join(HTTP_CACHE_STATION_PATH));
     let links_endpoint = StaticFileEndpoint::new(https_serve_dir.join(HTTP_CACHE_LINK_PATH));
+    let station_allowlist: HashSet<Box<str>> = data
+        .stations()
+        .iter()
+        .map(|station| station.code.to_lowercase().into_boxed_str())
+        .collect();
 
     let cors = Cors::new().allow_origin(&config.cors_domain);
     let catch_panic = CatchPanic::new();
@@ -292,7 +290,8 @@ async fn start_server(
         .with(catch_panic)
         .with(cors)
         .with(AddData::new(Arc::new(data)))
-        .with(AddData::new(Arc::new(ns_api)));
+        .with(AddData::new(Arc::new(ns_api)))
+        .with(AddData::new(Arc::new(station_allowlist)));
 
     let server = Server::new(TcpListener::bind(&config.bind_addr));
 

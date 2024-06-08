@@ -10,7 +10,7 @@ use super::PathfindingArguments;
 
 use ns_api::NsApi;
 
-use std::sync::Arc;
+use std::{collections::HashSet, sync::Arc};
 
 use poem::web::Data;
 
@@ -19,8 +19,9 @@ pub async fn route_finding_endpoint(
     ns_api: Data<&Arc<NsApi>>,
     datarepo: Data<&Arc<DataRepo>>,
     query: poem::web::Query<PathfindingArguments>,
+    station_allow_list: Data<&Arc<HashSet<Box<str>>>>,
 ) -> Response {
-    query.validate(datarepo.0.stations());
+    query.validate(&station_allow_list);
 
     println!("Request from: {} to: {}", query.from, query.to);
 
