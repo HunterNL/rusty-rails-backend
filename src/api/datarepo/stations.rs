@@ -31,9 +31,11 @@ struct NamesJSON {
     lang: String,
 
     // Medium
+    #[allow(dead_code)]
     middel: String,
 
     // Short
+    #[allow(dead_code)]
     kort: String,
 }
 
@@ -63,7 +65,7 @@ fn serialize_station_to_rank<S: Serializer>(
     station_type: &StationType,
     ser: S,
 ) -> Result<S::Ok, S::Error> {
-    Ok(ser.serialize_u8(station_type.as_rank())?)
+    ser.serialize_u8(station_type.as_rank())
 }
 
 // fn<S>(&T, S) -> Result<S::Ok, S::Error> where S: Serializer
@@ -81,7 +83,7 @@ impl StationType {
             StationType::Technical => 0,
         }
     }
-
+    #[allow(dead_code)]
     fn is_transfer(&self) -> bool {
         match self {
             StationType::Mega => true,

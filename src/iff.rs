@@ -1,12 +1,13 @@
 use std::{collections::HashMap, fs::File, io::Read};
 
 use chrono::NaiveDate;
+use parsing::{parse_footnote_file, parse_timetable_file};
 use serde::Serialize;
 use winnow::Parser;
 
 use crate::dayoffset::DayOffset;
 
-use self::parsing::{parse_footnote_file, parse_timetable_file, TransitMode};
+use self::parsing::TransitMode;
 
 mod parsing;
 
