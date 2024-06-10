@@ -16,6 +16,10 @@ mod timetable;
 pub use timetable::parse_footnote_file;
 pub use timetable::parse_timetable_file;
 
+mod company;
+pub use company::parse_company_file;
+pub use company::CompanyFile;
+
 use super::{Header, Leg, LegKind, Record, Ride, StopKind, TimetableEntry};
 
 /// Length of dates as they appear in the iff file

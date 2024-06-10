@@ -1,7 +1,7 @@
 use std::{collections::HashMap, fs::File, io::Read};
 
 use chrono::NaiveDate;
-use parsing::{parse_footnote_file, parse_timetable_file};
+use parsing::{parse_company_file, parse_footnote_file, parse_timetable_file, CompanyFile};
 use serde::Serialize;
 use winnow::Parser;
 
@@ -13,20 +13,24 @@ mod parsing;
 
 const FOOTNOTE_FILE_NAME: &str = "footnote.dat";
 const TIMETABLE_FILE_NAME: &str = "timetbls.dat";
+const COMPANY_FILE_NAME: &str = "company.dat";
 
 pub struct Iff {
     timetable: TimeTable,
     validity: RideValidity,
+    companies: Vec<Company>,
 }
 
 impl Iff {
     pub fn new_from_archive(archive: &File) -> Result<Self, String> {
         let timetable = Self::parse_timetable(archive)?;
         let validity = Self::parse_validity(archive)?;
+        let companies = Self::parse_companies(archive).map(|c| c.companies)?;
 
         Ok(Self {
             timetable,
             validity,
+            companies,
         })
     }
 
@@ -40,6 +44,10 @@ impl Iff {
 
     pub fn validity(&self) -> &RideValidity {
         &self.validity
+    }
+
+    pub fn companies(&self) -> &[Company] {
+        &self.companies
     }
 
     fn parse_timetable(archive: &File) -> Result<TimeTable, String> {
@@ -56,6 +64,12 @@ impl Iff {
         parse_footnote_file
             .parse(&content)
             .map_err(|o| o.to_string())
+    }
+
+    fn parse_companies(archive: &File) -> Result<CompanyFile, String> {
+        let content = read_file_from_archive(archive, COMPANY_FILE_NAME)?;
+
+        parse_company_file(content.as_str()).map_err(|o| o.to_string())
     }
 }
 
@@ -272,4 +286,12 @@ pub struct Leg {
     pub end: DayOffset,
     #[serde(flatten)]
     pub kind: LegKind,
+}
+
+#[derive(Serialize, Debug)]
+pub struct Company {
+    id: u32,
+    code: Box<str>,
+    name: Box<str>,
+    end_of_timetable: DayOffset,
 }

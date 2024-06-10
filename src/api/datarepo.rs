@@ -11,7 +11,7 @@ mod stations;
 use crate::{
     api::datarepo::{links::extract_links, stations::extract_stations},
     dayoffset::DayOffset,
-    iff::{self, Iff, Leg, LegKind, Record, Ride},
+    iff::{self, Company, Iff, Leg, LegKind, Record, Ride},
 };
 
 use self::{links::Link, stations::Station};
@@ -20,8 +20,6 @@ use self::{links::Link, stations::Station};
 pub struct DataRepo {
     links: Vec<Link>,
     stations: Vec<stations::Station>,
-    // rides: Vec<Record>,
-    // link_map: HashMap<LinkCode, Link>,
     iff: Iff,
     rides: Vec<iff::Ride>,
 }
@@ -180,6 +178,10 @@ impl DataRepo {
 
     pub fn rides(&self) -> &[Ride] {
         &self.rides
+    }
+
+    pub fn companies(&self) -> &[Company] {
+        self.iff.companies()
     }
 
     pub fn rides_active_at_time(&self, time: &NaiveTime, date: &NaiveDate) -> Vec<&Ride> {
