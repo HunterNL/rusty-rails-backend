@@ -2,6 +2,7 @@ mod datarepo;
 
 use std::{collections::HashSet, fs, path::Path, sync::Arc};
 
+use active_rides_timespan::active_rides_in_timespan_endpoint;
 use anyhow::{anyhow, Ok};
 
 use find_path_endpoint::route_finding_endpoint;
@@ -17,6 +18,7 @@ use serde::{ser::SerializeStruct, Deserialize, Serialize};
 use tokio::sync::mpsc;
 
 mod active_rides;
+mod active_rides_timespan;
 mod all_rides;
 mod find_path_endpoint;
 
@@ -285,6 +287,10 @@ async fn start_server(
         .at("/data/stations.json", get(stations_endpoint))
         .at("/data/links.json", get(links_endpoint))
         .at("/api/activerides", get(active_rides_endpoint))
+        .at(
+            "/api/activerides_timespan",
+            get(active_rides_in_timespan_endpoint),
+        )
         .at("/api/find_route", get(route_finding_endpoint))
         .at("/api/rides_all", get(all_rides_endpoint))
         .with(catch_panic)

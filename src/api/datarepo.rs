@@ -202,6 +202,30 @@ impl DataRepo {
             .collect()
     }
 
+    pub fn rides_active_in_timespan(
+        &self,
+        time_start: &NaiveTime,
+        time_end: &NaiveTime,
+        date: &NaiveDate,
+    ) -> Vec<&Ride> {
+        let offset_start = DayOffset::from_naivetime(time_start);
+        let offset_end = DayOffset::from_naivetime(time_end);
+
+        self.rides()
+            // .timetable()
+            // .rides
+            .iter()
+            .filter(|r| r.start_time() <= offset_end && r.end_time() > offset_start)
+            .filter(|r| {
+                self.iff
+                    .validity()
+                    .is_valid_on_day(r.day_validity, *date)
+                    .unwrap()
+            })
+            // .cloned()
+            .collect()
+    }
+
     pub fn rides_active_on_date(&self, date: &NaiveDate) -> Vec<&Ride> {
         self.rides()
             .iter()
