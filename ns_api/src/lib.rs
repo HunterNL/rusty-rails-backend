@@ -25,28 +25,71 @@ pub struct TripAdviceArguments<'a, 'b, 'c> {
     pub via: Option<&'c str>,
 }
 
-mod response_data {
+pub mod response_data {
     use serde::{Deserialize, Serialize};
 
     #[derive(Deserialize, Debug, Serialize)]
     #[allow(non_snake_case)]
-    pub struct Product {
-        pub number: String,
-        pub categoryCode: String,
+    #[serde(tag = "type")]
+    #[serde(rename_all = "UPPERCASE")]
+    pub enum Product {
+        Walk,
+        Train {
+            number: String,
+            categoryCode: String,
+        },
+        // pub number: String,
+        // pub categoryCode: String,
+    }
+
+    impl Product {
+        pub fn get_number(&self) -> Option<&str> {
+            match self {
+                Product::Walk => None,
+                Product::Train {
+                    number,
+                    categoryCode: _,
+                } => Some(number),
+            }
+        }
     }
 
     #[derive(Deserialize, Debug, Serialize)]
+    #[serde(tag = "type")]
+    #[serde(rename_all(deserialize = "UPPERCASE"))]
     #[allow(non_snake_case)]
-    pub struct Location {
-        pub stationCode: String,
+    pub enum Location {
+        Station { stationCode: String },
+        Address,
+    }
+
+    impl Location {
+        pub fn get_code(&self) -> Option<&str> {
+            match self {
+                Location::Station { stationCode } => Some(stationCode),
+                Location::Address => None,
+            }
+        }
+    }
+
+    #[derive(Deserialize, Debug, Serialize)]
+
+    // #[serde(rename_all(deserialize = "SCREAMING_SNAKE_CASE"))]
+    pub enum LegKind {
+        #[serde(rename = "WALK")]
+        Walk,
+        #[serde(rename = "PUBLIC_TRANSIT")]
+        PublicTransit,
     }
 
     #[derive(Deserialize, Debug, Serialize)]
     pub struct Leg {
-        pub name: String,
+        pub name: Option<String>,
         pub origin: Location,
         pub destination: Location,
         pub product: Product,
+        #[serde(rename = "travelType")]
+        pub travel_type: LegKind,
     }
 
     #[derive(Deserialize, Debug, Serialize)]
@@ -120,7 +163,6 @@ impl NsApi {
     ) -> Result<response_data::Response, ApiError> {
         let url = API_HOST.to_owned() + TRIP_PATH;
 
-        println!("{url}");
         let mut request = self
             .start_request(url)
             .query(&[("fromStation", args.from), ("toStation", args.to)]);
@@ -138,10 +180,6 @@ impl NsApi {
             .map_err(ApiError::Network)?;
 
         let byteslice = res.bytes().await.map_err(ApiError::Network)?;
-
-        // let byteslice = TESTDATA;
-
-        println!("{}", String::from_utf8(byteslice.clone().into()).unwrap());
 
         let response_data: response_data::Response =
             serde_json::from_slice(&byteslice).map_err(ApiError::Parsing)?;

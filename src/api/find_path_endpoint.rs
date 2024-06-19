@@ -1,10 +1,10 @@
-use crate::api::datarepo::DataRepo;
+use crate::api::{datarepo::DataRepo, errorresponse::UpstreamError};
 
 use super::RoutePlannerResponse;
 
 use ns_api::TripAdviceArguments;
 
-use poem::{handler, http::header, Response};
+use poem::{handler, http::header, IntoResponse, Response, Result};
 
 use super::PathfindingArguments;
 
@@ -20,7 +20,7 @@ pub async fn route_finding_endpoint(
     datarepo: Data<&Arc<DataRepo>>,
     query: poem::web::Query<PathfindingArguments>,
     station_allow_list: Data<&Arc<HashSet<Box<str>>>>,
-) -> Response {
+) -> Result<Response> {
     query.validate(&station_allow_list);
 
     println!("Request from: {} to: {}", query.from, query.to);
@@ -32,11 +32,16 @@ pub async fn route_finding_endpoint(
             via: None,
         })
         .await
-        .unwrap();
+        .map_err(|e| eprint!("{:?}", e))
+        .map_err(|_| UpstreamError {})?;
 
     let out = RoutePlannerResponse::new(&ns_data, &datarepo);
+    let body = serde_json::to_vec(&out)
+        .map_err(|e| eprint!("{:?}", e))
+        .map_err(|_| UpstreamError {})?;
 
-    Response::builder()
+    Ok(Response::builder()
         .header(header::CONTENT_TYPE, "application/json; charset=utf-8")
-        .body(serde_json::to_vec(&out).unwrap())
+        .body(body)
+        .into_response())
 }

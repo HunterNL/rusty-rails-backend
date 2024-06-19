@@ -20,6 +20,7 @@ use tokio::sync::mpsc;
 mod active_rides;
 mod active_rides_timespan;
 mod all_rides;
+mod errorresponse;
 mod find_path_endpoint;
 
 use crate::{
@@ -201,14 +202,22 @@ impl<'a> RoutePlannerResponse<'a> {
         let trips: Vec<_> = res
             .trips
             .iter()
+            .filter(|trip| {
+                trip.legs.iter().all(|leg| {
+                    matches!(
+                        leg.travel_type,
+                        ns_api::response_data::LegKind::PublicTransit
+                    )
+                })
+            })
             .map(|trip| RoutePlannerTrip {
                 legs: trip
                     .legs
                     .iter()
                     .map(|leg| RoutePlannerLeg {
-                        from: leg.origin.stationCode.to_owned(),
-                        to: leg.destination.stationCode.to_owned(),
-                        id: leg.product.number.to_owned(),
+                        from: leg.origin.get_code().unwrap().to_owned(),
+                        to: leg.destination.get_code().unwrap().to_owned(),
+                        id: leg.product.get_number().unwrap().to_owned(),
                     })
                     .collect(),
             })
