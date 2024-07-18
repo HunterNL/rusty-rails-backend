@@ -1,5 +1,6 @@
 use std::{
     collections::{HashMap, HashSet},
+    fmt::Display,
     fs::File,
     hash::Hash,
     iter,
@@ -27,6 +28,25 @@ pub struct DataRepo {
 /// Key to identify links, looking up links with the waypoint identifiers the wrong way around should return a corrected Link
 #[derive(Eq, Hash, PartialEq)]
 pub struct LinkCode(String, String);
+
+#[derive(Hash, PartialEq, Eq)]
+pub enum MissingLinkReport {
+    NoRoute(String, String),
+    NoStation(String),
+}
+
+impl Display for MissingLinkReport {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            MissingLinkReport::NoRoute(from, to) => {
+                f.write_fmt(format_args!("no route from {} to {}", from, to))
+            }
+            MissingLinkReport::NoStation(code) => {
+                f.write_fmt(format_args!("no station code {code}"))
+            }
+        }
+    }
+}
 
 trait LinkMap {
     #[allow(dead_code)]
@@ -65,7 +85,11 @@ impl LinkMap for HashMap<LinkCode, Link> {
 fn leg_codes(leg: &LegKind) -> Option<Vec<LinkCode>> {
     match leg {
         LegKind::Stationary(_, _) => None,
-        LegKind::Moving(from, to, waypoints) => Some({
+        LegKind::Moving {
+            from,
+            to,
+            waypoints,
+        } => Some({
             iter::once(from)
                 .chain(waypoints.iter())
                 .chain(iter::once(to))
@@ -84,9 +108,42 @@ fn leg_has_complete_data(
 ) -> bool {
     match &leg.kind {
         LegKind::Stationary(code, _) => station_codes.contains(code),
-        LegKind::Moving(_from, _to, _waypoints) => leg_codes(&leg.kind)
+        LegKind::Moving {
+            from: _from,
+            to: _to,
+            waypoints: _waypoints,
+        } => leg_codes(&leg.kind)
             .iter()
             .all(|leg_code| leg_code.iter().all(|code| links.contains_undirected(code))),
+    }
+}
+
+fn report_missing(
+    record: &Record,
+    station_codes: &HashSet<String>,
+    links: &HashMap<LinkCode, Link>,
+) -> Vec<MissingLinkReport> {
+    record
+        .generate_legs()
+        .iter()
+        .flat_map(|leg| report_missing_leg(leg, station_codes, links))
+        .collect()
+}
+
+fn report_missing_leg(
+    leg: &Leg,
+    station_codes: &HashSet<String>,
+    links: &HashMap<LinkCode, Link>,
+) -> Option<MissingLinkReport> {
+    match &leg.kind {
+        LegKind::Stationary(code, _) => (!station_codes.contains(code.as_str()))
+            .then(|| MissingLinkReport::NoStation(code.clone())),
+        LegKind::Moving {
+            from,
+            to,
+            waypoints: _,
+        } => (!links.contains_undirected(&LinkCode(from.clone(), to.clone())))
+            .then(|| MissingLinkReport::NoRoute(from.clone(), to.clone())),
     }
 }
 
@@ -106,7 +163,7 @@ impl DataRepo {
         let iff_file = File::open(cache_dir.join("remote").join("ns-latest.zip"))
             .expect("To find timetable file");
 
-        let mut iff = Iff::new_from_archive(&iff_file)
+        let iff = Iff::new_from_archive(&iff_file)
             .map_err(|e| println!("{e}"))
             .expect("valid parse");
 
@@ -116,13 +173,8 @@ impl DataRepo {
             .expect("To find stations file");
 
         let links: Vec<Link> = extract_links(&route_file);
-        let link_map: HashMap<LinkCode, Link> = links
-            .iter()
-            .map(|link| (link.link_code(), link.clone()))
-            .collect();
-        let stations = extract_stations(&stations_file);
 
-        let station_codes: HashSet<String> = stations.iter().map(|s| s.code.clone()).collect();
+        let stations = extract_stations(&stations_file);
 
         let duration = iff
             .timetable()
@@ -140,32 +192,12 @@ impl DataRepo {
         );
         println!("Day count: {}", duration.num_days());
 
-        // TODO Drop this check and deal with skipping waypoints throughout the app, or deal with translating stations from the iff into coordinates
-        // This filters out timetable entries that contain stops that we don't have data on, mostly (entirely?) international trains
-        println!("Pre data filter ride #: {}", iff.timetable().rides.len());
-        iff.timetable_mut()
-            .rides
-            .retain(|ride| has_complete_data(ride, &station_codes, &link_map));
-
         let rides: Vec<iff::Ride> = iff
             .timetable()
             .rides
             .iter()
             .flat_map(|record| record.split_on_ride_id())
             .collect();
-
-        // let links_map=  HashMap::from_iter(links.iter().map(|link| (make_link_code(link., b))))
-
-        // timetable.rides.retain(|ride| {
-        //     ride.timetable.windows(2).all(|slice| {
-        //         let [left,right] = slice else {panic!("unexpected match failure")};
-
-        //     })
-        // })
-
-        println!("Post data filter ride #: {}", iff.timetable().rides.len());
-
-        // println!("{:?}", stations);
 
         Self {
             rides,
@@ -174,6 +206,73 @@ impl DataRepo {
             // link_map,
             iff,
         }
+    }
+
+    pub fn report_unkown_legs(&self) {
+        let link_map: HashMap<LinkCode, Link> = self
+            .links
+            .iter()
+            .map(|link| (link.link_code(), link.clone()))
+            .collect();
+
+        let station_codes: HashSet<String> = self.stations.iter().map(|s| s.code.clone()).collect();
+
+        let reports: Vec<_> = self
+            .iff
+            .timetable()
+            .rides
+            .iter()
+            .filter(|r| !has_complete_data(r, &station_codes, &link_map))
+            .flat_map(|r| report_missing(r, &station_codes, &link_map))
+            .collect();
+
+        let mut map = HashMap::new();
+
+        reports
+            .into_iter()
+            .for_each(|r| *map.entry(r).or_insert(0) += 1);
+
+        let mut entries: Vec<_> = map.into_iter().collect();
+        entries.sort_by_key(|r| r.1);
+        entries
+            .iter()
+            .rev()
+            .for_each(|e| println!("{} ({})", e.0, e.1))
+    }
+
+    pub fn filter_unknown_legs(&mut self) {
+        // TODO Drop this check and deal with skipping waypoints throughout the app, or deal with translating stations from the iff into coordinates
+        // This filters out timetable entries that contain stops that we don't have data on, mostly (entirely?) international trains
+        println!(
+            "Pre data filter ride #: {}",
+            self.iff.timetable().rides.len()
+        );
+
+        let link_map: HashMap<LinkCode, Link> = self
+            .links
+            .iter()
+            .map(|link| (link.link_code(), link.clone()))
+            .collect();
+
+        let station_codes: HashSet<String> = self.stations.iter().map(|s| s.code.clone()).collect();
+
+        self.iff
+            .timetable_mut()
+            .rides
+            .retain(|ride| has_complete_data(ride, &station_codes, &link_map));
+
+        println!(
+            "Post data filter ride #: {}",
+            self.iff.timetable().rides.len()
+        );
+
+        self.rides = self
+            .iff
+            .timetable()
+            .rides
+            .iter()
+            .flat_map(|record| record.split_on_ride_id())
+            .collect();
     }
 
     pub fn rides(&self) -> &[Ride] {

@@ -1,4 +1,4 @@
-mod datarepo;
+pub mod datarepo;
 
 use std::{collections::HashSet, fs, path::Path, sync::Arc};
 
@@ -71,7 +71,11 @@ impl<'a> Serialize for ApiObject<'a, Leg> {
 
         let stoptype = match &self.0.kind {
             LegKind::Stationary(_, stop_kind) => Some(stopkind_to_num(stop_kind)),
-            LegKind::Moving(_, _, _) => None,
+            LegKind::Moving {
+                from: _,
+                to: _,
+                waypoints: _,
+            } => None,
         };
         leg.serialize_field("stopType", &stoptype)?;
 
@@ -140,7 +144,8 @@ pub fn serve(config: &AppConfig, autofetch: bool) -> Result<(), anyhow::Error> {
     }
 
     let http_dir = config.cache_dir.join(HTTP_CACHE_SUBDIR);
-    let data = datarepo::DataRepo::new(&config.cache_dir);
+    let mut data = datarepo::DataRepo::new(&config.cache_dir);
+    data.filter_unknown_legs();
 
     prepare_files(&data, &http_dir)?;
 

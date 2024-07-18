@@ -9,8 +9,9 @@ mod ndovloket_api;
 
 use std::{env, path::PathBuf};
 
-use anyhow::Context;
+use anyhow::{Context, Ok};
 
+use api::datarepo::DataRepo;
 use figment::{
     providers::{Env, Format, Toml},
     Figment,
@@ -44,5 +45,12 @@ fn main() -> Result<(), anyhow::Error> {
     match cli_options.command {
         cli::SubCommand::Fetch => fetch::fetch(&config),
         cli::SubCommand::Serve { autofetch } => api::serve(&config, autofetch),
+        cli::SubCommand::Verify => verify(&config),
     }
+}
+
+fn verify(config: &AppConfig) -> Result<(), anyhow::Error> {
+    DataRepo::new(&config.cache_dir).report_unkown_legs();
+
+    Ok(())
 }

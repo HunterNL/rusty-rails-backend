@@ -229,39 +229,66 @@ pub struct Ride {
 #[derive(Serialize)]
 pub enum LegKind {
     Stationary(String, StopKind),
-    Moving(String, String, Vec<String>),
+    Moving {
+        from: String,
+        to: String,
+        waypoints: Vec<String>,
+    },
 }
 
 impl LegKind {
     pub fn is_moving(&self) -> bool {
-        matches!(&self, Self::Moving(_, _, _))
+        matches!(
+            &self,
+            Self::Moving {
+                from: _,
+                to: _,
+                waypoints: _
+            }
+        )
     }
 
     pub fn waypoints(&self) -> Option<&Vec<String>> {
         match self {
             Self::Stationary(_, _) => None,
-            Self::Moving(_, _, wp) => Some(wp),
+            Self::Moving {
+                from: _,
+                to: _,
+                waypoints: wp,
+            } => Some(wp),
         }
     }
 
     pub fn from(&self) -> Option<&String> {
         match self {
             Self::Stationary(_, _) => None,
-            Self::Moving(from, _, _) => Some(from),
+            Self::Moving {
+                from,
+                to: _,
+                waypoints: _,
+            } => Some(from),
         }
     }
 
     pub fn to(&self) -> Option<&String> {
         match self {
             Self::Stationary(_, _) => None,
-            Self::Moving(_, to, _) => Some(to),
+            Self::Moving {
+                from: _,
+                to,
+                waypoints: _,
+            } => Some(to),
         }
     }
 
     pub fn station_code(&self) -> Option<&String> {
         match self {
             Self::Stationary(code, _) => Some(code),
-            Self::Moving(_, _, _) => None,
+            Self::Moving {
+                from: _,
+                to: _,
+                waypoints: _,
+            } => None,
         }
     }
 
@@ -275,7 +302,11 @@ impl LegKind {
                 StopKind::StopShort(plat, _) => plat.as_ref(),
                 StopKind::StopLong(plat, _, _) => plat.as_ref(),
             },
-            Self::Moving(_, _, _) => None,
+            Self::Moving {
+                from: _,
+                to: _,
+                waypoints: _,
+            } => None,
         }
     }
 }

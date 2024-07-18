@@ -21,6 +21,7 @@ pub enum SubCommand {
         #[arg(long)]
         autofetch: bool,
     },
+    Verify,
 }
 
 pub fn get_cli_args() -> Options {

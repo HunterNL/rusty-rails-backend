@@ -179,11 +179,11 @@ pub fn generate_legs(entries: &[TimetableEntry]) -> Vec<Leg> {
                 .stop_kind
                 .arrival_time()
                 .expect("leg end to have an arrival time"),
-            kind: LegKind::Moving(
-                previous_stop.code.clone(),
-                entry.code.clone(),
-                waypoints.iter().map(|c| c.code.clone()).collect(),
-            ),
+            kind: LegKind::Moving {
+                from: previous_stop.code.clone(),
+                to: entry.code.clone(),
+                waypoints: waypoints.iter().map(|c| c.code.clone()).collect(),
+            },
         });
 
         previous_stop = entry;
