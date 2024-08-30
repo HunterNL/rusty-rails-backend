@@ -7,7 +7,7 @@
         {
             "type": "lldb",
             "request": "launch",
-            "name": "Debug executable 'rustyrails'",
+            "name": "Debug serve",
             "cargo": {
                 "args": [
                     "build",
@@ -19,9 +19,30 @@
                     "kind": "bin"
                 }
             },
-            "args": ["serve"],
+            "args": [
+                "serve"
+            ],
             "cwd": "${workspaceFolder}"
-            
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug fetch",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--bin=rustyrails",
+                    "--package=rustyrails"
+                ],
+                "filter": {
+                    "name": "rustyrails",
+                    "kind": "bin"
+                }
+            },
+            "args": [
+                "fetch"
+            ],
+            "cwd": "${workspaceFolder}"
         },
         {
             "type": "lldb",

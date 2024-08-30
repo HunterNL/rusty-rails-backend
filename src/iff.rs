@@ -1,24 +1,36 @@
-use std::{collections::HashMap, fs::File, io::Read};
+use std::{
+    collections::HashMap,
+    fs::{read, File},
+    io::{self, Cursor, Read},
+};
 
 use chrono::NaiveDate;
-use parsing::{parse_company_file, parse_footnote_file, parse_timetable_file, CompanyFile};
-use serde::Serialize;
+use parsing::{
+    parse_company_file, parse_delivery_file, parse_footnote_file, parse_timetable_file, CompanyFile,
+};
+use serde::{de, Serialize};
 use winnow::Parser;
 
 use crate::dayoffset::DayOffset;
 
 use self::parsing::TransitMode;
 
+pub enum Error {
+    ParseError,
+}
+
 mod parsing;
 
 const FOOTNOTE_FILE_NAME: &str = "footnote.dat";
 const TIMETABLE_FILE_NAME: &str = "timetbls.dat";
 const COMPANY_FILE_NAME: &str = "company.dat";
+const HEADER_FILENAME: &str = "delivery.dat";
 
 pub struct Iff {
     timetable: TimeTable,
     validity: RideValidity,
     companies: Vec<Company>,
+    header: Header,
 }
 
 impl Iff {
@@ -26,11 +38,13 @@ impl Iff {
         let timetable = Self::parse_timetable(archive)?;
         let validity = Self::parse_validity(archive)?;
         let companies = Self::parse_companies(archive).map(|c| c.companies)?;
+        let delivery = Self::parse_delivery(archive)?;
 
         Ok(Self {
             timetable,
             validity,
             companies,
+            header: delivery,
         })
     }
 
@@ -50,7 +64,11 @@ impl Iff {
         &self.companies
     }
 
-    fn parse_timetable(archive: &File) -> Result<TimeTable, String> {
+    pub fn header(&self) -> &Header {
+        &self.header
+    }
+
+    fn parse_timetable(archive: impl Read + io::Seek) -> Result<TimeTable, String> {
         let content = read_file_from_archive(archive, TIMETABLE_FILE_NAME)?;
 
         parse_timetable_file
@@ -58,7 +76,7 @@ impl Iff {
             .map_err(|o| o.to_string())
     }
 
-    fn parse_validity(archive: &File) -> Result<RideValidity, String> {
+    fn parse_validity(archive: impl Read + io::Seek) -> Result<RideValidity, String> {
         let content = read_file_from_archive(archive, FOOTNOTE_FILE_NAME)?;
 
         parse_footnote_file
@@ -66,14 +84,29 @@ impl Iff {
             .map_err(|o| o.to_string())
     }
 
-    fn parse_companies(archive: &File) -> Result<CompanyFile, String> {
+    fn parse_companies(archive: impl Read + io::Seek) -> Result<CompanyFile, String> {
         let content = read_file_from_archive(archive, COMPANY_FILE_NAME)?;
 
         parse_company_file(content.as_str()).map_err(|o| o.to_string())
     }
+
+    pub fn parse_delivery(archive: impl Read + io::Seek) -> Result<Header, String> {
+        let content = read_file_from_archive(archive, HEADER_FILENAME)?;
+
+        parse_delivery_file(content.as_str()).map_err(|o| o.to_string())
+    }
+
+    pub fn parse_version_only(data: &[u8]) -> Result<u64, String> {
+        let cursor = Cursor::new(data);
+        let delivery_file = read_file_from_archive(cursor, HEADER_FILENAME)?;
+
+        parse_delivery_file(&delivery_file)
+            .map_err(|e| e.to_string())
+            .map(|h| h.version)
+    }
 }
 
-fn read_file_from_archive(archive: &File, filename: &str) -> Result<String, String> {
+fn read_file_from_archive(archive: impl Read + io::Seek, filename: &str) -> Result<String, String> {
     let mut archive = zip::ZipArchive::new(archive).expect("valid new archive");
     let mut file = archive
         .by_name(filename)

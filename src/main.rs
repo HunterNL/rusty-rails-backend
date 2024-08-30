@@ -43,7 +43,7 @@ fn main() -> Result<(), anyhow::Error> {
     // config.cache_dir = cli_options.cache_dir.into();
 
     match cli_options.command {
-        cli::SubCommand::Fetch => fetch::fetch(&config),
+        cli::SubCommand::Fetch => fetch::fetch(&config.cache_dir, config.ns_api_key.as_deref()),
         cli::SubCommand::Serve { autofetch } => api::serve(&config, autofetch),
         cli::SubCommand::Verify => verify(&config),
     }

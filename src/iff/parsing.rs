@@ -1,6 +1,7 @@
 use chrono::NaiveDate;
 use serde::Serialize;
 use std::fmt::Display;
+use winnow::error::ParseError;
 
 use winnow::ascii::{dec_uint, line_ending, multispace0, Uint};
 use winnow::combinator::trace;
@@ -19,6 +20,12 @@ pub use timetable::parse_timetable_file;
 mod company;
 pub use company::parse_company_file;
 pub use company::CompanyFile;
+
+pub fn parse_delivery_file(
+    input: &str,
+) -> Result<Header, ParseError<&str, winnow::error::ContextError>> {
+    parse_header.parse(input)
+}
 
 use super::{Header, Leg, LegKind, Record, Ride, StopKind, TimetableEntry};
 

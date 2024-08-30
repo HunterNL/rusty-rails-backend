@@ -12,6 +12,7 @@ mod stations;
 use crate::{
     api::datarepo::{links::extract_links, stations::extract_stations},
     dayoffset::DayOffset,
+    fetch::{ROUTE_FILEPATH, STATION_FILEPATH, TIMETABLE_PATH},
     iff::{self, Company, Iff, Leg, LegKind, Record, Ride},
 };
 
@@ -23,6 +24,7 @@ pub struct DataRepo {
     stations: Vec<stations::Station>,
     iff: Iff,
     rides: Vec<iff::Ride>,
+    version: u64,
 }
 
 /// Key to identify links, looking up links with the waypoint identifiers the wrong way around should return a corrected Link
@@ -160,17 +162,15 @@ fn has_complete_data(
 
 impl DataRepo {
     pub fn new(cache_dir: &std::path::Path) -> Self {
-        let iff_file = File::open(cache_dir.join("remote").join("ns-latest.zip"))
-            .expect("To find timetable file");
+        let iff_file = File::open(cache_dir.join(TIMETABLE_PATH)).expect("To find timetable file");
 
         let iff = Iff::new_from_archive(&iff_file)
             .map_err(|e| println!("{e}"))
             .expect("valid parse");
 
-        let route_file =
-            File::open(cache_dir.join("remote").join("route.json")).expect("To find route file");
-        let stations_file = File::open(cache_dir.join("remote").join("stations.json"))
-            .expect("To find stations file");
+        let route_file = File::open(cache_dir.join(ROUTE_FILEPATH)).expect("To find route file");
+        let stations_file =
+            File::open(cache_dir.join(STATION_FILEPATH)).expect("To find stations file");
 
         let links: Vec<Link> = extract_links(&route_file);
 
@@ -199,12 +199,15 @@ impl DataRepo {
             .flat_map(|record| record.split_on_ride_id())
             .collect();
 
+        let version = iff.header().version;
+
         Self {
             rides,
             links,
             stations,
             // link_map,
             iff,
+            version,
         }
     }
 
@@ -347,6 +350,10 @@ impl DataRepo {
 
     pub fn stations(&self) -> &[Station] {
         &self.stations
+    }
+
+    pub fn version(&self) -> u64 {
+        self.version
     }
 
     pub fn is_ride_valid(&self, footnote: u64, day: NaiveDate) -> bool {
