@@ -5,7 +5,7 @@ use std::{
     str::FromStr,
 };
 
-use chrono::{format::format, NaiveTime, Timelike};
+use chrono::{NaiveTime, Timelike};
 use serde::Serialize;
 
 const MILLISECOND: u32 = 1;

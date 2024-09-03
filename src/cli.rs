@@ -1,4 +1,4 @@
-use clap::{command, Arg, Args, Parser, Subcommand};
+use clap::{command, Args, Parser, Subcommand};
 
 #[derive(Parser)]
 pub struct Options {

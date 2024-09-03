@@ -9,7 +9,7 @@ mod ndovloket_api;
 mod print;
 mod time;
 
-use std::{env, path::PathBuf};
+use std::{path::PathBuf};
 
 use anyhow::{Context, Ok};
 
