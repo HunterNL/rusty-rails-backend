@@ -6,6 +6,8 @@ mod dayoffset;
 mod fetch;
 mod iff;
 mod ndovloket_api;
+mod print;
+mod time;
 
 use std::{env, path::PathBuf};
 
@@ -46,6 +48,7 @@ fn main() -> Result<(), anyhow::Error> {
         cli::SubCommand::Fetch => fetch::fetch(&config.cache_dir, config.ns_api_key.as_deref()),
         cli::SubCommand::Serve { autofetch } => api::serve(&config, autofetch),
         cli::SubCommand::Verify => verify(&config),
+        cli::SubCommand::Print(args) => Ok(print::print(&config, args)),
     }
 }
 

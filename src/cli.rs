@@ -1,4 +1,4 @@
-use clap::{Parser, Subcommand};
+use clap::{command, Arg, Args, Parser, Subcommand};
 
 #[derive(Parser)]
 pub struct Options {
@@ -14,14 +14,30 @@ pub struct Options {
     // use_ssl: bool,
 }
 
-#[derive(Subcommand)]
+#[derive(Subcommand, Debug)]
 pub enum SubCommand {
+    // Cache timetable data
     Fetch,
+    // Serve data for a frontend via HTTP
     Serve {
         #[arg(long)]
         autofetch: bool,
     },
+    // Print timetable oddities
     Verify,
+    // Print timetable data
+    Print(PrintStruct),
+}
+
+#[derive(Debug, Args)]
+pub struct PrintStruct {
+    #[command(subcommand)]
+    pub command: PrintSubCommand,
+}
+
+#[derive(Debug, Subcommand)]
+pub enum PrintSubCommand {
+    Departures { station: String },
 }
 
 pub fn get_cli_args() -> Options {

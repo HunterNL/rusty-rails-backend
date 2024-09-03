@@ -162,6 +162,8 @@ fn leg_for_stop(entry: &TimetableEntry) -> Leg {
     }
 }
 
+/// Turn a slice of TimetableEntry's into Legs
+/// This process collects ajoining waypoints into MovingLegs and
 pub fn generate_legs(entries: &[TimetableEntry]) -> Vec<Leg> {
     let mut out = vec![];
     let mut waypoints = vec![];

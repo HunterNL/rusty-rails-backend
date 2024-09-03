@@ -352,6 +352,11 @@ impl DataRepo {
         &self.stations
     }
 
+    pub fn station_by_code(&self, code: impl AsRef<str>) -> Option<&Station> {
+        let code = code.as_ref();
+        self.stations.iter().find(|station| station.code == code)
+    }
+
     pub fn version(&self) -> u64 {
         self.version
     }

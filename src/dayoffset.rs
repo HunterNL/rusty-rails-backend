@@ -1,12 +1,18 @@
-use std::{cmp, error::Error, fmt::Display, str::FromStr};
+use std::{
+    cmp,
+    error::Error,
+    fmt::{Display, Write},
+    str::FromStr,
+};
 
-use chrono::{NaiveTime, Timelike};
+use chrono::{format::format, NaiveTime, Timelike};
 use serde::Serialize;
 
 const MILLISECOND: u32 = 1;
 const SECOND: u32 = MILLISECOND * 1000;
 const MINUTE: u32 = SECOND * 60;
 const HOUR: u32 = MINUTE * 60;
+const DAY: u32 = HOUR * 24;
 
 /**
 Time as an offset from midnight.
@@ -18,6 +24,21 @@ Precision in milliseconds.
 #[serde(transparent)]
 pub struct DayOffset {
     offset: u32,
+}
+
+pub struct DayOffsetTimetableDisplay<'a> {
+    inner: &'a DayOffset,
+}
+
+impl<'a> Display for DayOffsetTimetableDisplay<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        // Strip times that exceed 24hours
+        let local_time = self.inner.offset % DAY;
+        let hours = local_time / HOUR;
+        let minutes = (local_time % HOUR) / MINUTE;
+
+        write!(f, "{:02}:{:02}", hours, minutes)
+    }
 }
 
 impl Ord for DayOffset {
@@ -45,8 +66,12 @@ impl DayOffset {
 
     pub fn offset_by(&self, minutes: i32) -> Self {
         Self {
-            offset: self.offset.saturating_add_signed(minutes),
+            offset: self.offset.saturating_add_signed(minutes * (MINUTE as i32)),
         }
+    }
+
+    pub fn display_for_timetable(&self) -> DayOffsetTimetableDisplay<'_> {
+        DayOffsetTimetableDisplay { inner: self }
     }
 }
 

@@ -166,6 +166,17 @@ impl StopKind {
         self == &Self::Waypoint
     }
 
+    // If passengers can board the train at this stop
+    pub fn is_boardable(&self) -> bool {
+        match self {
+            StopKind::Departure(_, _) => true,
+            StopKind::Arrival(_, _) => false,
+            StopKind::Waypoint => false,
+            StopKind::StopShort(_, _) => true,
+            StopKind::StopLong(_, _, _) => true,
+        }
+    }
+
     pub fn platform_info(&self) -> Option<&PlatformInfo> {
         match self {
             StopKind::Departure(pl, _) => pl.as_ref(),
@@ -253,6 +264,20 @@ pub struct Ride {
     pub day_validity: u64,
     pub previous: Option<String>,
     pub next: Option<String>,
+}
+
+impl Ride {
+    pub fn stop_at_code(&self, code: &str) -> Option<&TimetableEntry> {
+        self.timetable
+            .iter()
+            .find(|entry| entry.code == code && !entry.stop_kind.is_waypoint())
+    }
+    // TODO This needs to take footnotes into account for special trains eg international
+    pub fn boardable_at_code(&self, code: &str) -> bool {
+        self.timetable
+            .iter()
+            .any(|entry| entry.code == code && entry.stop_kind.is_boardable())
+    }
 }
 
 #[derive(Serialize)]
