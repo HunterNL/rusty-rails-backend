@@ -1,22 +1,18 @@
 use anyhow::anyhow;
-use std::{
-    error::Error as StdError,
-    path::{Path, PathBuf},
-};
+use std::path::Path;
 
 use crate::{
     iff,
     ndovloket_api::{self},
-    AppConfig,
 };
 
-use crate::cache::{Action, Cache, CacheError};
+use crate::cache::{Action, Cache, Error};
 
 pub static TIMETABLE_PATH: &str = "remote/ns_iff.zip";
 pub const STATION_FILEPATH: &str = "remote/stations.json";
 pub const ROUTE_FILEPATH: &str = "remote/route.json";
 
-fn print_cacheresult(res: Result<Action, CacheError>) {
+fn print_cacheresult(res: Result<Action, Error>) {
     match res {
         Ok(ok) => println!("{ok:?}"),
         Err(err) => print!("{err:?}"),
@@ -68,13 +64,13 @@ pub async fn fetch(storage_dir: &Path, ns_key: Option<&str>) -> Result<(), anyho
             .ensure_async(|| ns.fetch_routes(), ROUTE_FILEPATH)
             .await;
 
-        // print_cacheresult(a);
+        print_cacheresult(a);
 
         let b = cache
             .ensure_async(|| ns.fetch_stations(), STATION_FILEPATH)
             .await;
 
-        // print_cacheresult(b);
+        print_cacheresult(b);
     } else {
         println!("Skipping updating NS data, no key");
     }

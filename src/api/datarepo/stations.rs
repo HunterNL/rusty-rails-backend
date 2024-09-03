@@ -39,13 +39,13 @@ struct NamesJSON {
     kort: String,
 }
 
+#[allow(non_snake_case)]
 #[derive(Deserialize)]
 struct StationJSON {
     code: String,
     namen: NamesJSON,
     lat: f64,
     lng: f64,
-    #[allow(non_snake_case)]
     stationType: String,
 }
 

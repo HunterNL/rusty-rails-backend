@@ -1,14 +1,10 @@
 // use core::fmt;
 use std::{
-    error::Error,
-    fmt::{Debug, Display},
+    fmt::Debug,
     fs::{self},
     future::Future,
-    path::{self, Path, PathBuf}, // time::Duration,
+    path::{Path, PathBuf}, // time::Duration,
 };
-
-// use derive_more::derive::From;
-use thiserror::Error;
 
 #[derive(Debug)]
 pub enum Action {
@@ -51,46 +47,17 @@ where
     }
 }
 
-/// An error encountered while retrieving the data to cache, as the function is user provided the error can be anything
-#[derive(Debug)]
-pub struct SourceError {
-    // source: Box<dyn std::error::Error>,
-}
-
-impl Error for SourceError {
-    // fn source(&self) -> Option<&(dyn Error + 'static)> {
-    //     Some(self.source()).as_deref()
-    // }
-}
-
-impl Display for SourceError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        // {
-        //     let this = &self.source;
-        //     fmt::Debug::fmt(&**this, f)
-        // }
-        f.write_str("sourceerror")
-    }
-}
-
-impl From<Box<dyn std::error::Error>> for SourceError {
-    fn from(err: Box<(dyn std::error::Error + 'static)>) -> Self {
-        SourceError {}
-    }
-}
-
 /// Errors that can occur when updating the cache, either a file error or something in the user provided function
-#[derive(Debug, Error)]
-pub enum CacheError {
+#[derive(Debug, thiserror::Error)]
+pub enum Error {
     #[error("Error handling file io: {0}")]
-    IOError(#[from] std::io::Error),
+    IO(#[from] std::io::Error),
 
-    #[error("Error in source")]
-    SourceError,
+    #[error("Error while calling data source")]
+    Source(#[source] Box<dyn std::error::Error>),
 
-    #[error("Error in update fn")]
-    UpdateFunctionError,
-    // #[error("Error in source: {0}")]
+    #[error("Error in update deciding function")]
+    UpdateFunction(#[source] Box<dyn std::error::Error>),
 }
 
 fn append_to_file_stem(path: &mut PathBuf, suffix: &str) -> Result<(), std::io::Error> {
@@ -101,9 +68,9 @@ fn append_to_file_stem(path: &mut PathBuf, suffix: &str) -> Result<(), std::io::
     let orgin_extension = path.extension();
 
     filename.push(suffix);
-    if orgin_extension.is_some() {
+    if let Some(extension) = orgin_extension {
         filename.push(".");
-        filename.push(&orgin_extension.unwrap());
+        filename.push(extension);
     }
 
     path.set_file_name(filename);
@@ -112,11 +79,11 @@ fn append_to_file_stem(path: &mut PathBuf, suffix: &str) -> Result<(), std::io::
 }
 
 impl Cache {
-    pub fn new(base_dir: &Path) -> Result<Self, anyhow::Error> {
-        fs::create_dir_all(base_dir)?;
+    pub fn new(base_dir: impl AsRef<Path>) -> Result<Self, anyhow::Error> {
+        fs::create_dir_all(base_dir.as_ref())?;
 
         Ok(Self {
-            base_dir: base_dir.into(),
+            base_dir: base_dir.as_ref().to_owned(),
         })
     }
 
@@ -147,36 +114,12 @@ impl Cache {
         Err(std::io::Error::other("out of possible candidate paths"))
     }
 
-    // #[allow(dead_code)]
-    // pub fn ensure<S, E>(&self, source: S, output_path: &Path) -> Result<Action, CacheError<E>>
-    // where
-    //     S: Source<E>,
-    //     // E: Error + Send + Sync + 'static,
-    // {
-    //     let file_path = self.base_dir.join(output_path);
-    //     let content = source.get().map_err(CacheError::SourceError)?;
-    //     let existing_content = fs::read(file_path).map_err(op)
-
-    //     if !file_path.exists() {
-    //         // No file exists, just save the data as we got it
-    //         let mut file = File::create(&file_path).map_err(CacheError::IOError)?;
-    //         fs::write(file_path, content).map_err(CacheError::IOError)?;
-    //         // file.write_all(&content).
-    //         Ok(Action::Fetched)
-    //     } else {
-    //         // File exists
-
-    //     }
-
-    //     Ok(Action::Updated)
-    // }
-
     pub async fn ensure_versioned_async<SourceFn, SourceErr, VersionError, UpdateFn>(
         &self,
         source: SourceFn,
         output_path: impl AsRef<Path>,
         update_fn: UpdateFn,
-    ) -> Result<Action, CacheError>
+    ) -> Result<Action, Error>
     where
         SourceFn: SourceAsync<SourceErr>,
         UpdateFn: Fn(&[u8], &[u8]) -> Result<bool, VersionError>, // E: Error + Send + Sync + 'static,
@@ -185,26 +128,19 @@ impl Cache {
     {
         let file_path = self.base_dir.join(output_path);
         let source_result = source.get_async().await;
-        let remote_content = source_result.map_err(|e: SourceErr| CacheError::SourceError)?;
-
-        println!("downloaded");
+        let remote_content = source_result.map_err(|e: SourceErr| Error::Source(e.into()))?;
 
         if !file_path.exists() {
-            println!("no exsists");
             fs::write(file_path, remote_content)?;
 
             Ok(Action::Sourced)
         } else {
-            println!("no exists");
             let existing_content = fs::read(&file_path)?;
-            // File exists
             let update_required = update_fn(&existing_content, &remote_content)
-                .map_err(|e| CacheError::UpdateFunctionError)?;
+                .map_err(|e| Error::UpdateFunction(e.into()))?;
 
             if update_required {
-                println!("pre archive {}", &file_path.display());
                 let archived_path = Self::archive_file(&file_path)?;
-                println!("post archive");
                 fs::write(&file_path, &remote_content)?;
 
                 Ok(Action::Updated {
@@ -212,7 +148,6 @@ impl Cache {
                     new: file_path,
                 })
             } else {
-                println!("no update required");
                 Ok(Action::Skipped)
             }
         }
@@ -222,10 +157,10 @@ impl Cache {
         &self,
         source: SourceFn,
         output_path: impl AsRef<Path>,
-    ) -> Result<Action, CacheError>
+    ) -> Result<Action, Error>
     where
         SourceFn: SourceAsync<SourceErr>,
-        SourceErr: Into<Box<dyn Error>>,
+        SourceErr: Into<Box<dyn std::error::Error>>,
     {
         let file_path = self.base_dir.join(output_path);
 
@@ -233,7 +168,7 @@ impl Cache {
             let remote_content = source
                 .get_async()
                 .await
-                .map_err(|a| CacheError::SourceError)?;
+                .map_err(|a| Error::Source(a.into()))?;
 
             fs::write(file_path, remote_content)?;
 
@@ -241,5 +176,22 @@ impl Cache {
         } else {
             Ok(Action::Skipped)
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+
+    use super::Error as SuperError;
+    use std::error::Error;
+
+    #[test]
+    fn source_err() {
+        // let c = Cache::new("./cache").unwrap();
+        // c.ensure_async(source, output_path)
+
+        let a = SuperError::UpdateFunction("foo".into());
+        let source = a.source().expect("source to be set").to_string();
+        assert_eq!(source, "foo".to_owned())
     }
 }

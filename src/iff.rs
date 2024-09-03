@@ -1,6 +1,6 @@
 use std::{
     collections::HashMap,
-    fs::{read, File},
+    fs::File,
     io::{self, Cursor, Read},
 };
 
@@ -8,16 +8,12 @@ use chrono::NaiveDate;
 use parsing::{
     parse_company_file, parse_delivery_file, parse_footnote_file, parse_timetable_file, CompanyFile,
 };
-use serde::{de, Serialize};
+use serde::Serialize;
 use winnow::Parser;
 
 use crate::dayoffset::DayOffset;
 
 use self::parsing::TransitMode;
-
-pub enum Error {
-    ParseError,
-}
 
 mod parsing;
 
