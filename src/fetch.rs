@@ -1,5 +1,6 @@
 use anyhow::anyhow;
 use std::path::Path;
+use tokio::fs;
 
 use crate::{
     iff,
@@ -28,24 +29,27 @@ fn is_update_required(old: &[u8], new: &[u8]) -> Result<bool, Box<dyn std::error
 
 #[tokio::main]
 pub async fn fetch(storage_dir: &Path, ns_key: Option<&str>) -> Result<(), anyhow::Error> {
-    if !storage_dir.is_dir() {
-        return Err(anyhow!("Expected cache_dir to be a directory"));
+    if !storage_dir.exists() {
+        println!(
+            "Cache dir at {} is empty, creating...",
+            storage_dir.canonicalize()?.display()
+        );
+
+        fs::create_dir_all(storage_dir).await?;
+    }
+
+    if storage_dir.is_file() {
+        return Err(anyhow!(
+            "Expected cache_dir to be a empty or an existing directory, not a file"
+        ));
     }
 
     let cache = Cache::new(storage_dir)?;
-
-    // let filepath = cache.base_dir.join(TIMETABLE_PATH).canonicalize().unwrap();
-
-    // filepath.components().for_each(|c| println!("{:?}", c));
-
-    // return Ok(());
 
     println!(
         "post cache init {}",
         cache.base_dir.join(TIMETABLE_PATH).display()
     );
-
-    // return Ok((()));
 
     let timetable_result = cache
         .ensure_versioned_async(

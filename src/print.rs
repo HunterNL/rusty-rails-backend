@@ -7,12 +7,14 @@ use crate::{
     time, AppConfig,
 };
 
-pub fn print(config: &AppConfig, args: cli::PrintStruct) {
+pub fn print(config: &AppConfig, args: cli::PrintStruct) -> Result<(), anyhow::Error> {
     let data = datarepo::DataRepo::new(&config.cache_dir);
 
     match args.command {
         cli::PrintSubCommand::Departures { station } => print_departures(&data, station.as_str()),
     }
+
+    Ok(())
 }
 
 fn print_departures(data: &DataRepo, name_or_code: &str) {

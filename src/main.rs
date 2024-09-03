@@ -30,14 +30,12 @@ pub struct AppConfig {
 }
 
 fn main() -> Result<(), anyhow::Error> {
-    let config = Figment::new()
+    let config: Figment = Figment::new()
         .merge(Toml::file("./config/project.toml"))
         .merge(Toml::file("./config/project.secret.toml"))
         .merge(Toml::file("./config/local.toml"))
         .merge(Env::prefixed("APP_")); // For deployment?
 
-    let cur = env::current_dir().unwrap();
-    println!("pwd: {}", cur.to_str().unwrap());
     let config: AppConfig = config.extract().context("Parsing config files")?;
     let cli_options = cli::get_cli_args();
 
@@ -48,7 +46,7 @@ fn main() -> Result<(), anyhow::Error> {
         cli::SubCommand::Fetch => fetch::fetch(&config.cache_dir, config.ns_api_key.as_deref()),
         cli::SubCommand::Serve { autofetch } => api::serve(&config, autofetch),
         cli::SubCommand::Verify => verify(&config),
-        cli::SubCommand::Print(args) => Ok(print::print(&config, args)),
+        cli::SubCommand::Print(args) => print::print(&config, args),
     }
 }
 
