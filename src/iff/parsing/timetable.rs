@@ -51,12 +51,23 @@ pub fn parse_footnote_file(input: &mut &str) -> PResult<RideValidity> {
 }
 
 pub fn parse_timetable_file(input: &mut &str) -> PResult<TimeTable> {
-    (parse_header, repeat(0.., parse_record))
+    (parse_header, parse_records)
         .parse_next(input)
         .map(|seq| TimeTable {
             header: seq.0,
             rides: seq.1,
         })
+}
+
+fn parse_records(input: &mut &str) -> PResult<Vec<Record>> {
+    let estimate_count = input.matches('#').count();
+    let mut accumulator = Vec::with_capacity(estimate_count);
+
+    while !input.is_empty() {
+        accumulator.push(parse_record.parse_next(input)?)
+    }
+
+    Ok(accumulator)
 }
 
 // ?13 ,13 ,00003
