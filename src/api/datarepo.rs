@@ -160,6 +160,38 @@ fn has_complete_data(
         .all(|leg| leg_has_complete_data(leg, station_codes, links))
 }
 
+pub fn select_station_by_name<'a>(stations: &'a [Station], needle: &str) -> Option<&'a Station> {
+    let needle = needle.to_lowercase();
+
+    let exact_match = stations.iter().find(|s| s.name.to_lowercase() == needle);
+
+    if exact_match.is_some() {
+        return exact_match;
+    }
+
+    let candidate_matches: Vec<_> = stations
+        .iter()
+        .map(|s| (s, s.name.to_lowercase()))
+        .filter(|(_, name)| name.contains(needle.as_str()))
+        .collect();
+
+    return match candidate_matches.len() {
+        0 => None,
+        1 => candidate_matches
+            .first()
+            .map(|(station, _): &(&Station, String)| *station),
+        _ => {
+            println!("Got plenty of matches, figure out some heuristics");
+
+            for station in candidate_matches.iter() {
+                println!("{}", station.0.name)
+            }
+
+            candidate_matches.first().map(|a| a.0)
+        }
+    };
+}
+
 impl DataRepo {
     pub fn new(cache_dir: &std::path::Path) -> Self {
         let iff_file = File::open(cache_dir.join(TIMETABLE_PATH)).expect("To find timetable file");

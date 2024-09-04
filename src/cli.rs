@@ -27,6 +27,7 @@ pub enum SubCommand {
     Verify,
     // Print timetable data
     Print(PrintStruct),
+    Bench,
 }
 
 #[derive(Debug, Args)]

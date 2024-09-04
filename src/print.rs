@@ -1,4 +1,5 @@
-use chrono::{Duration};
+use anyhow::anyhow;
+use chrono::Duration;
 
 use crate::{
     api::datarepo::{self, DataRepo},
@@ -11,18 +12,25 @@ pub fn print(config: &AppConfig, args: cli::PrintStruct) -> Result<(), anyhow::E
     let data = datarepo::DataRepo::new(&config.cache_dir);
 
     match args.command {
-        cli::PrintSubCommand::Departures { station } => print_departures(&data, station.as_str()),
+        cli::PrintSubCommand::Departures { station } => {
+            print_departures(&data, station.as_str()).map_err(|a| anyhow!(a))
+        }
     }
-
-    Ok(())
 }
 
-fn print_departures(data: &DataRepo, name_or_code: &str) {
+// fn select_station_by_name<'a,'b,'c>(stations: &'a [&'c Station], name_or_code: &'b str) -> Option<&'a Station> {
+
+// }
+
+fn print_departures(data: &DataRepo, name_or_code: &str) -> Result<(), String> {
     let station = data
         .stations()
         .iter()
         .find(|station| station.code == name_or_code)
-        .unwrap();
+        .or_else(|| datarepo::select_station_by_name(data.stations(), name_or_code))
+        .ok_or("failed to find station")?;
+
+    let code = &station.code;
 
     println!("{}", station.name);
 
@@ -31,7 +39,7 @@ fn print_departures(data: &DataRepo, name_or_code: &str) {
     let mut active_rides =
         data.rides_active_in_timespan(&now.time(), &future.time(), &now.date_naive());
 
-    active_rides.retain(|ride| ride.boardable_at_code(name_or_code));
+    active_rides.retain(|ride| ride.boardable_at_code(code));
 
     // Timestamp before which are hide departures, since they're too far in the past to be relevant
     let cutoff_time_start = DayOffset::from_naivetime(&now.time());
@@ -41,7 +49,7 @@ fn print_departures(data: &DataRepo, name_or_code: &str) {
     // And filter these to trains that depart between `cutoff_time_start` and `cutoff_time_end`
     let mut ride_and_stop: Vec<_> = active_rides
         .into_iter()
-        .map(|ride| (ride, ride.stop_at_code(name_or_code).unwrap()))
+        .map(|ride| (ride, ride.stop_at_code(code).unwrap()))
         .filter(|(_, stop)| {
             stop.stop_kind.departure_time().unwrap() > &cutoff_time_start
                 && stop.stop_kind.departure_time().unwrap() < &cutoff_time_end
@@ -63,4 +71,6 @@ fn print_departures(data: &DataRepo, name_or_code: &str) {
                 .name,
         )
     }
+
+    Ok(())
 }
