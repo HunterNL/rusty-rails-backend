@@ -1,16 +1,16 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, str::FromStr};
 
 use winnow::{
     ascii::{alphanumeric1, line_ending, multispace0, space0},
-    combinator::{alt, fail, opt, preceded, repeat, terminated, trace},
+    combinator::{dispatch, fail, opt, preceded, repeat, terminated, trace},
     stream::AsChar,
     token::{one_of, take_till, take_while},
     PResult, Parser,
 };
 
 use crate::iff::{
-    DayValidityFootnote, Footnote, Header, PlatformInfo, Record, RideId, RideValidity, StopKind,
-    TimeTable, TimetableEntry,
+    DayValidityFootnote, Footnote, Header, Platform, PlatformInfo, Record, RideId, RideValidity,
+    StopKind, TimeTable, TimetableEntry,
 };
 
 use super::{
@@ -79,51 +79,45 @@ fn parse_platform_info(input: &mut &str) -> PResult<PlatformInfo> {
     )
     .parse_next(input)
     .map(|seq| PlatformInfo {
-        arrival_platform: seq.1.map(std::borrow::ToOwned::to_owned),
-        departure_platform: seq.4.map(std::borrow::ToOwned::to_owned),
+        arrival_platform: seq.1.map(|s| Platform::from_str(s).unwrap()),
+        departure_platform: seq.4.map(|s| Platform::from_str(s).unwrap()),
         footnote: seq.7,
     })
 }
 
 fn parse_departure(input: &mut &str) -> PResult<TimetableEntry> {
-    preceded(
-        '>',
-        (
-            parse_code,
-            space0,
-            ',',
-            parse_time,
-            line_ending,
-            opt(parse_platform_info),
-        ),
+    (
+        parse_code,
+        space0,
+        ',',
+        parse_time,
+        line_ending,
+        opt(parse_platform_info),
     )
-    .parse_next(input)
-    .map(|seq| TimetableEntry {
-        code: seq.0,
-        stop_kind: StopKind::Departure(seq.5, seq.3),
-    })
+        .parse_next(input)
+        .map(|seq| TimetableEntry {
+            code: seq.0,
+            stop_kind: StopKind::Departure(seq.5, seq.3),
+        })
 }
 
 fn any_entry(input: &mut &str) -> PResult<TimetableEntry> {
-    trace(
-        "any_entry",
-        alt((
-            parse_departure,
-            parse_waypoint,
-            parse_stop_short,
-            parse_stop_long,
-            parse_arrival,
-            fail,
-        )),
-    )
+    dispatch! {winnow::token::any;
+            '>' => parse_departure,
+            ';' => parse_waypoint,
+            '.' => parse_stop_short,
+            '+' => parse_stop_long,
+            '<' => parse_arrival,
+            _ => fail,
+    }
     .parse_next(input)
 }
 
 fn parse_waypoint(input: &mut &str) -> PResult<TimetableEntry> {
-    (';', parse_code, opt(line_ending))
+    (parse_code, opt(line_ending))
         .parse_next(input)
         .map(|seq| TimetableEntry {
-            code: seq.1,
+            code: seq.0,
             stop_kind: StopKind::Waypoint,
         })
 }
@@ -136,7 +130,6 @@ fn parse_code(input: &mut &str) -> PResult<String> {
 
 fn parse_stop_short(input: &mut &str) -> PResult<TimetableEntry> {
     (
-        '.',
         parse_code,
         ',',
         parse_time,
@@ -145,14 +138,13 @@ fn parse_stop_short(input: &mut &str) -> PResult<TimetableEntry> {
     )
         .parse_next(input)
         .map(|seq| TimetableEntry {
-            code: seq.1,
-            stop_kind: StopKind::StopShort(seq.5, seq.3),
+            code: seq.0,
+            stop_kind: StopKind::StopShort(seq.4, seq.2),
         })
 }
 
 fn parse_stop_long(input: &mut &str) -> PResult<TimetableEntry> {
     (
-        '+',
         parse_code,
         ',',
         parse_time,
@@ -163,14 +155,13 @@ fn parse_stop_long(input: &mut &str) -> PResult<TimetableEntry> {
     )
         .parse_next(input)
         .map(|seq| TimetableEntry {
-            code: seq.1,
-            stop_kind: StopKind::StopLong(seq.7, seq.3, seq.5),
+            code: seq.0,
+            stop_kind: StopKind::StopLong(seq.6, seq.2, seq.4),
         })
 }
 
 fn parse_arrival(input: &mut &str) -> PResult<TimetableEntry> {
     (
-        '<',
         parse_code,
         ',',
         parse_time,
@@ -179,8 +170,8 @@ fn parse_arrival(input: &mut &str) -> PResult<TimetableEntry> {
     )
         .parse_next(input)
         .map(|seq| TimetableEntry {
-            code: seq.1,
-            stop_kind: StopKind::Arrival(seq.5, seq.3),
+            code: seq.0,
+            stop_kind: StopKind::Arrival(seq.4, seq.2),
         })
 }
 
@@ -192,8 +183,8 @@ mod test_platform_parse {
     fn test_platform_parse() {
         let input = "?11 ,15 ,00003";
         let expected = PlatformInfo {
-            arrival_platform: Some("11".to_owned()),
-            departure_platform: Some("15".to_owned()),
+            arrival_platform: Some(Platform::from_str("11").unwrap()),
+            departure_platform: Some(Platform::from_str("15").unwrap()),
             footnote: 3,
         };
 
@@ -282,17 +273,14 @@ fn parse_record(input: &mut &str) -> PResult<Record> {
             take_till(0.., '&').void(),
             parse_transit_mode,
             take_till(0.., '>').void(),
-            parse_departure,
             repeat(1.., any_entry),
         ),
     )
     .map(
-        |seq: (_, _, _, _, _, TransitMode, _, _, Vec<TimetableEntry>)| {
-            let mut v = vec![seq.7];
-            v.extend(seq.8);
+        |seq: (_, _, _, _, _, TransitMode, _, Vec<TimetableEntry>)| {
             Record {
                 id: seq.0,
-                timetable: v,
+                timetable: seq.7,
                 ride_id: seq.2,
                 day_validity_footnote: seq.3.footnote, // NONSTANDARD assuming date footnotes span the entire length of a record
                 transit_types: vec![seq.5],
@@ -313,15 +301,15 @@ mod test_record {
         dayoffset::DayOffset,
         iff::{
             parsing::{dec_uint_leading, TransitMode},
-            PlatformInfo, Ride, RideId, StopKind, TimetableEntry,
+            Platform, PlatformInfo, Ride, RideId, StopKind, TimetableEntry,
         },
     };
 
     macro_rules! platform {
         ($platform:literal,$footnote:literal) => {
             PlatformInfo {
-                arrival_platform: Some($platform.to_owned()),
-                departure_platform: Some($platform.to_owned()),
+                arrival_platform: Some(Platform::plain($platform)),
+                departure_platform: Some(Platform::plain($platform)),
                 footnote: $footnote,
             }
         };
@@ -360,7 +348,7 @@ mod test_record {
                     entry!(
                         "rtd",
                         StopKind::Departure(
-                            Some(platform!("13", 3)),
+                            Some(platform!(13, 3)),
                             DayOffset::from_hour_minute(18, 50)
                         )
                     ),
@@ -369,8 +357,8 @@ mod test_record {
                         code: "rta".to_owned(),
                         stop_kind: StopKind::StopShort(
                             Some(PlatformInfo {
-                                arrival_platform: Some("1".to_owned()),
-                                departure_platform: Some("1".to_owned()),
+                                arrival_platform: Some(Platform::plain(1)),
+                                departure_platform: Some(Platform::plain(1)),
                                 footnote: 3
                             }),
                             DayOffset::from_hour_minute(18, 58)
@@ -381,7 +369,7 @@ mod test_record {
                     entry!(
                         "gd",
                         StopKind::StopLong(
-                            Some(platform!("3", 3)),
+                            Some(platform!(3, 3)),
                             DayOffset::from_hour_minute(19, 8),
                             DayOffset::from_hour_minute(19, 9)
                         )
@@ -394,7 +382,7 @@ mod test_record {
                     entry!(
                         "ut",
                         StopKind::Arrival(
-                            Some(platform!("11", 3)),
+                            Some(platform!(11, 3)),
                             DayOffset::from_hour_minute(19, 28)
                         )
                     ),
@@ -414,7 +402,7 @@ mod test_record {
                     entry!(
                         "ut",
                         StopKind::Departure(
-                            Some(platform!("11", 3)),
+                            Some(platform!(11, 3)),
                             DayOffset::from_hour_minute(19, 36)
                         )
                     ),
@@ -424,7 +412,7 @@ mod test_record {
                     entry!(
                         "amf",
                         StopKind::Arrival(
-                            Some(platform!("2", 3)),
+                            Some(platform!(2, 3)),
                             DayOffset::from_hour_minute(19, 50)
                         )
                     ),
@@ -483,8 +471,8 @@ mod test_record {
                 code: "rtd".to_owned(),
                 stop_kind: StopKind::Departure(
                     Some(PlatformInfo {
-                        departure_platform: Some("13".to_owned()),
-                        arrival_platform: Some("13".to_owned()),
+                        departure_platform: Some(Platform::plain(13)),
+                        arrival_platform: Some(Platform::plain(13)),
                         footnote: 3
                     }),
                     DayOffset::from_hour_minute(18, 50)

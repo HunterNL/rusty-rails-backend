@@ -1,9 +1,4 @@
-use std::{
-    cmp,
-    error::Error,
-    fmt::{Display, Write},
-    str::FromStr,
-};
+use std::{cmp, error::Error, fmt::Display, str::FromStr};
 
 use chrono::{NaiveTime, Timelike};
 use serde::Serialize;

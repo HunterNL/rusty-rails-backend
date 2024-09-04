@@ -2,6 +2,7 @@ use std::{
     collections::HashMap,
     fs::File,
     io::{self, Cursor, Read},
+    str::FromStr,
 };
 
 use chrono::NaiveDate;
@@ -125,10 +126,71 @@ pub struct TimetableEntry {
     pub stop_kind: StopKind,
 }
 
+#[derive(Debug, PartialEq, Clone, Eq, Serialize)]
+pub struct Platform {
+    suffix: Option<char>,
+    number: u8,
+    range_to: Option<u8>,
+}
+
+impl Platform {
+    pub fn plain(n: u8) -> Self {
+        Platform {
+            number: n,
+            suffix: None,
+            range_to: None,
+        }
+    }
+}
+
+#[derive(Debug, PartialEq, Clone, Eq, Serialize)]
+pub struct PlatformParseError;
+
+impl FromStr for Platform {
+    type Err = PlatformParseError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        // Common case
+        let num_parse_result = u8::from_str(s);
+        if let Ok(number) = num_parse_result {
+            return Ok(Platform {
+                number,
+                suffix: None,
+                range_to: None,
+            });
+        }
+
+        if s.ends_with(|c: char| c.is_alphabetic()) {
+            let a = &s[0..s.len() - 1];
+
+            return Ok(Platform {
+                number: a.parse().unwrap(), // todo not unwrap
+                suffix: s.chars().last(),
+                range_to: None,
+            });
+        }
+
+        // Special case
+        if s.chars().nth(1).unwrap() == '-' {
+            let left = u8::try_from(s.chars().next().unwrap()).unwrap();
+            let right = u8::try_from(s.chars().last().unwrap()).unwrap();
+
+            return Ok(Platform {
+                number: left,
+                suffix: None,
+                range_to: Some(right),
+            });
+        }
+
+        Err(PlatformParseError)
+        // common case
+    }
+}
+
 #[derive(Debug, PartialEq, Eq, Clone, Serialize)]
 pub struct PlatformInfo {
-    arrival_platform: Option<String>,
-    departure_platform: Option<String>,
+    arrival_platform: Option<Platform>,
+    departure_platform: Option<Platform>,
     footnote: u64,
 }
 
