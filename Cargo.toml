@@ -27,3 +27,8 @@ derive_more = { version = "1.0.0", features = ["from"] }
 [dev-dependencies]
 pretty_assertions = "1.4.0"
 testresult = "0.4.0"
+
+
+#[profile.release]
+#debug=true
+#strip = false

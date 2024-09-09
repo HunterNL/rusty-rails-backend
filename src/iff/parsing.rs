@@ -158,7 +158,7 @@ fn leg_for_stop(entry: &TimetableEntry) -> Leg {
     Leg {
         start: arrival,
         end: departure,
-        kind: LegKind::Stationary(entry.code.clone(), entry.stop_kind.clone()),
+        kind: LegKind::Stationary(entry.code, entry.stop_kind.clone()),
     }
 }
 

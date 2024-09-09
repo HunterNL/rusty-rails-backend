@@ -13,10 +13,12 @@ use crate::{
     api::datarepo::{links::extract_links, stations::extract_stations},
     dayoffset::DayOffset,
     fetch::{ROUTE_FILEPATH, STATION_FILEPATH, TIMETABLE_PATH},
-    iff::{self, Company, Iff, Leg, LegKind, Record, Ride},
+    iff::{self, Company, Iff, Leg, LegKind, LocationCache, LocationCodeHandle, Record, Ride},
 };
 
 use self::{links::Link, stations::Station};
+
+// use super::ApiSerializationContext;
 
 /// A master container for all data, this is the struct eventually passed to the server
 pub struct DataRepo {
@@ -29,22 +31,39 @@ pub struct DataRepo {
 
 /// Key to identify links, looking up links with the waypoint identifiers the wrong way around should return a corrected Link
 #[derive(Eq, Hash, PartialEq)]
-pub struct LinkCode(String, String);
+pub struct LinkCode(LocationCodeHandle, LocationCodeHandle);
 
 #[derive(Hash, PartialEq, Eq)]
 pub enum MissingLinkReport {
-    NoRoute(String, String),
-    NoStation(String),
+    NoRoute(LocationCodeHandle, LocationCodeHandle),
+    NoStation(LocationCodeHandle),
 }
 
-impl Display for MissingLinkReport {
+struct MissingLinkReportDisplay<'a, 'b> {
+    inner: &'a MissingLinkReport,
+    cache: &'b LocationCache,
+}
+
+impl MissingLinkReport {
+    fn display<'a, 'b>(&'a self, cache: &'b LocationCache) -> MissingLinkReportDisplay<'a, 'b> {
+        MissingLinkReportDisplay {
+            inner: &self,
+            cache,
+        }
+    }
+}
+
+impl<'a, 'b> Display for MissingLinkReportDisplay<'a, 'b> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
+        match self.inner {
             MissingLinkReport::NoRoute(from, to) => {
+                let from = self.cache.get_str(from).unwrap();
+                let to = self.cache.get_str(to).unwrap();
                 f.write_fmt(format_args!("no route from {} to {}", from, to))
             }
             MissingLinkReport::NoStation(code) => {
-                f.write_fmt(format_args!("no station code {code}"))
+                let name = self.cache.get_str(code).unwrap();
+                f.write_fmt(format_args!("no station code {name}"))
             }
         }
     }
@@ -95,9 +114,9 @@ fn leg_codes(leg: &LegKind) -> Option<Vec<LinkCode>> {
             iter::once(from)
                 .chain(waypoints.iter())
                 .chain(iter::once(to))
-                .collect::<Vec<&String>>()
+                .collect::<Vec<_>>()
                 .windows(2)
-                .map(|slice| LinkCode(slice[0].to_string(), slice[1].to_string()))
+                .map(|slice| LinkCode(*slice[0], *slice[1]))
                 .collect()
         }),
     }
@@ -106,10 +125,14 @@ fn leg_codes(leg: &LegKind) -> Option<Vec<LinkCode>> {
 fn leg_has_complete_data(
     leg: &Leg,
     station_codes: &HashSet<String>,
+    location_cache: &LocationCache,
     links: &HashMap<LinkCode, Link>,
 ) -> bool {
     match &leg.kind {
-        LegKind::Stationary(code, _) => station_codes.contains(code),
+        LegKind::Stationary(location, _) => {
+            let code = location_cache.get_str(location).unwrap();
+            station_codes.contains(code)
+        }
         LegKind::Moving {
             from: _from,
             to: _to,
@@ -123,23 +146,27 @@ fn leg_has_complete_data(
 fn report_missing(
     record: &Record,
     station_codes: &HashSet<String>,
+    location_cache: &LocationCache,
     links: &HashMap<LinkCode, Link>,
 ) -> Vec<MissingLinkReport> {
     record
         .generate_legs()
         .iter()
-        .flat_map(|leg| report_missing_leg(leg, station_codes, links))
+        .flat_map(|leg| report_missing_leg(leg, station_codes, location_cache, links))
         .collect()
 }
 
 fn report_missing_leg(
     leg: &Leg,
     station_codes: &HashSet<String>,
+    location_cache: &LocationCache,
     links: &HashMap<LinkCode, Link>,
 ) -> Option<MissingLinkReport> {
     match &leg.kind {
-        LegKind::Stationary(code, _) => (!station_codes.contains(code.as_str()))
-            .then(|| MissingLinkReport::NoStation(code.clone())),
+        LegKind::Stationary(location, _) => {
+            let code = location_cache.get_str(location).unwrap();
+            (!station_codes.contains(code)).then(|| MissingLinkReport::NoStation(*location))
+        }
         LegKind::Moving {
             from,
             to,
@@ -152,12 +179,13 @@ fn report_missing_leg(
 fn has_complete_data(
     record: &Record,
     station_codes: &HashSet<String>,
+    location_cache: &LocationCache,
     links: &HashMap<LinkCode, Link>,
 ) -> bool {
     record
         .generate_legs()
         .iter()
-        .all(|leg| leg_has_complete_data(leg, station_codes, links))
+        .all(|leg| leg_has_complete_data(leg, station_codes, location_cache, links))
 }
 
 pub fn select_station_by_name<'a>(stations: &'a [Station], needle: &str) -> Option<&'a Station> {
@@ -194,6 +222,7 @@ pub fn select_station_by_name<'a>(stations: &'a [Station], needle: &str) -> Opti
 
 impl DataRepo {
     pub fn new(cache_dir: &std::path::Path) -> Self {
+        let mut locations = LocationCache::new();
         let iff_file = File::open(cache_dir.join(TIMETABLE_PATH)).expect("To find timetable file");
 
         let iff = Iff::new_from_archive(&iff_file)
@@ -204,7 +233,7 @@ impl DataRepo {
         let stations_file =
             File::open(cache_dir.join(STATION_FILEPATH)).expect("To find stations file");
 
-        let links: Vec<Link> = extract_links(&route_file);
+        let links: Vec<Link> = extract_links(&route_file, &mut locations);
 
         let stations = extract_stations(&stations_file);
 
@@ -251,14 +280,15 @@ impl DataRepo {
             .collect();
 
         let station_codes: HashSet<String> = self.stations.iter().map(|s| s.code.clone()).collect();
+        let location_cache = &self.iff.timetable().locations;
 
         let reports: Vec<_> = self
             .iff
             .timetable()
             .rides
             .iter()
-            .filter(|r| !has_complete_data(r, &station_codes, &link_map))
-            .flat_map(|r| report_missing(r, &station_codes, &link_map))
+            .filter(|r| !has_complete_data(r, &station_codes, location_cache, &link_map))
+            .flat_map(|r| report_missing(r, &station_codes, location_cache, &link_map))
             .collect();
 
         let mut map = HashMap::new();
@@ -272,7 +302,7 @@ impl DataRepo {
         entries
             .iter()
             .rev()
-            .for_each(|e| println!("{} ({})", e.0, e.1))
+            .for_each(|e| println!("{} ({})", e.0.display(location_cache), e.1))
     }
 
     pub fn filter_unknown_legs(&mut self) {
@@ -290,11 +320,11 @@ impl DataRepo {
             .collect();
 
         let station_codes: HashSet<String> = self.stations.iter().map(|s| s.code.clone()).collect();
+        let location_cache = &self.iff.timetable().locations.clone();
 
         self.iff
-            .timetable_mut()
-            .rides
-            .retain(|ride| has_complete_data(ride, &station_codes, &link_map));
+            .rides_mut()
+            .retain(|ride| has_complete_data(ride, &station_codes, &location_cache, &link_map));
 
         println!(
             "Post data filter ride #: {}",
@@ -395,5 +425,9 @@ impl DataRepo {
 
     pub fn is_ride_valid(&self, footnote: u64, day: NaiveDate) -> bool {
         self.iff.validity().is_valid_on_day(footnote, day).unwrap()
+    }
+
+    pub fn location_cache(&self) -> &LocationCache {
+        &self.iff.timetable().locations
     }
 }

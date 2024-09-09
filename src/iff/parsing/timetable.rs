@@ -9,8 +9,8 @@ use winnow::{
 };
 
 use crate::iff::{
-    DayValidityFootnote, Footnote, Header, Platform, PlatformInfo, Record, RideId, RideValidity,
-    StopKind, TimeTable, TimetableEntry,
+    DayValidityFootnote, Footnote, Header, LocationCache, Platform, PlatformInfo, Record, RideId,
+    RideValidity, StopKind, TimeTable, TimetableEntryRaw,
 };
 
 use super::{
@@ -20,6 +20,40 @@ use super::{
 
 fn parse_single_day(input: &mut &str) -> PResult<bool> {
     one_of(['0', '1']).map(|char| char == '1').parse_next(input)
+}
+
+struct RecordParser<'a> {
+    locations: &'a mut LocationCache,
+}
+
+impl<'a> Parser<&str, Record, winnow::error::ContextError> for RecordParser<'a> {
+    fn parse_next(&mut self, input: &mut &str) -> PResult<Record> {
+        preceded(
+            '#',
+            (
+                dec_uint_leading,
+                line_ending,
+                repeat(0.., parse_ride_id),
+                parse_day_footnote,
+                take_till(0.., '&').void(),
+                parse_transit_mode,
+                take_till(0.., '>').void(),
+                repeat(1.., any_entry),
+            ),
+        )
+        .map(
+            |seq: (_, _, _, _, _, TransitMode, _, Vec<TimetableEntryRaw>)| {
+                Record {
+                    id: seq.0,
+                    timetable: seq.7.iter().map(|s| s.to_proper(self.locations)).collect(),
+                    ride_id: seq.2,
+                    day_validity_footnote: seq.3.footnote, // NONSTANDARD assuming date footnotes span the entire length of a record
+                    transit_types: vec![seq.5],
+                }
+            },
+        )
+        .parse_next(input)
+    }
 }
 
 fn parse_footnote_record(input: &mut &str) -> PResult<DayValidityFootnote> {
@@ -55,19 +89,28 @@ pub fn parse_timetable_file(input: &mut &str) -> PResult<TimeTable> {
         .parse_next(input)
         .map(|seq| TimeTable {
             header: seq.0,
-            rides: seq.1,
+            rides: seq.1 .0,
+            locations: seq.1 .1,
         })
 }
 
-fn parse_records(input: &mut &str) -> PResult<Vec<Record>> {
-    let estimate_count = input.matches('#').count();
-    let mut accumulator = Vec::with_capacity(estimate_count);
+fn parse_records(input: &mut &str) -> PResult<(Vec<Record>, LocationCache)> {
+    let estimate_record_count = input.matches('#').count();
+    let mut accumulator = Vec::with_capacity(estimate_record_count);
+
+    const ESTIMATE_UNIQUE_LOCATION_CODES: usize = 1000;
+    let mut location_codes = LocationCache::with_capacity(ESTIMATE_UNIQUE_LOCATION_CODES);
+
+    let mut record_parser = RecordParser {
+        locations: &mut location_codes,
+    };
 
     while !input.is_empty() {
-        accumulator.push(parse_record.parse_next(input)?)
+        let record = record_parser.parse_next(input)?;
+        accumulator.push(record)
     }
 
-    Ok(accumulator)
+    Ok((accumulator, location_codes))
 }
 
 // ?13 ,13 ,00003
@@ -96,7 +139,7 @@ fn parse_platform_info(input: &mut &str) -> PResult<PlatformInfo> {
     })
 }
 
-fn parse_departure(input: &mut &str) -> PResult<TimetableEntry> {
+fn parse_departure<'s>(input: &mut &'s str) -> PResult<TimetableEntryRaw<'s>> {
     (
         parse_code,
         space0,
@@ -106,13 +149,13 @@ fn parse_departure(input: &mut &str) -> PResult<TimetableEntry> {
         opt(parse_platform_info),
     )
         .parse_next(input)
-        .map(|seq| TimetableEntry {
+        .map(|seq| TimetableEntryRaw {
             code: seq.0,
             stop_kind: StopKind::Departure(seq.5, seq.3),
         })
 }
 
-fn any_entry(input: &mut &str) -> PResult<TimetableEntry> {
+fn any_entry<'s>(input: &mut &'s str) -> PResult<TimetableEntryRaw<'s>> {
     dispatch! {winnow::token::any;
             '>' => parse_departure,
             ';' => parse_waypoint,
@@ -124,22 +167,20 @@ fn any_entry(input: &mut &str) -> PResult<TimetableEntry> {
     .parse_next(input)
 }
 
-fn parse_waypoint(input: &mut &str) -> PResult<TimetableEntry> {
+fn parse_waypoint<'a>(input: &mut &'a str) -> PResult<TimetableEntryRaw<'a>> {
     (parse_code, opt(line_ending))
         .parse_next(input)
-        .map(|seq| TimetableEntry {
+        .map(|seq| TimetableEntryRaw {
             code: seq.0,
             stop_kind: StopKind::Waypoint,
         })
 }
 
-fn parse_code(input: &mut &str) -> PResult<String> {
-    terminated(alphanumeric1, multispace0)
-        .parse_next(input)
-        .map(std::borrow::ToOwned::to_owned)
+fn parse_code<'s>(input: &mut &'s str) -> PResult<&'s str> {
+    terminated(alphanumeric1, multispace0).parse_next(input)
 }
 
-fn parse_stop_short(input: &mut &str) -> PResult<TimetableEntry> {
+fn parse_stop_short<'s>(input: &mut &'s str) -> PResult<TimetableEntryRaw<'s>> {
     (
         parse_code,
         ',',
@@ -148,13 +189,13 @@ fn parse_stop_short(input: &mut &str) -> PResult<TimetableEntry> {
         opt(parse_platform_info),
     )
         .parse_next(input)
-        .map(|seq| TimetableEntry {
+        .map(|seq| TimetableEntryRaw {
             code: seq.0,
             stop_kind: StopKind::StopShort(seq.4, seq.2),
         })
 }
 
-fn parse_stop_long(input: &mut &str) -> PResult<TimetableEntry> {
+fn parse_stop_long<'s>(input: &mut &'s str) -> PResult<TimetableEntryRaw<'s>> {
     (
         parse_code,
         ',',
@@ -165,13 +206,13 @@ fn parse_stop_long(input: &mut &str) -> PResult<TimetableEntry> {
         opt(parse_platform_info),
     )
         .parse_next(input)
-        .map(|seq| TimetableEntry {
+        .map(|seq| TimetableEntryRaw {
             code: seq.0,
             stop_kind: StopKind::StopLong(seq.6, seq.2, seq.4),
         })
 }
 
-fn parse_arrival(input: &mut &str) -> PResult<TimetableEntry> {
+fn parse_arrival<'s>(input: &mut &'s str) -> PResult<TimetableEntryRaw<'s>> {
     (
         parse_code,
         ',',
@@ -180,7 +221,7 @@ fn parse_arrival(input: &mut &str) -> PResult<TimetableEntry> {
         opt(parse_platform_info),
     )
         .parse_next(input)
-        .map(|seq| TimetableEntry {
+        .map(|seq| TimetableEntryRaw {
             code: seq.0,
             stop_kind: StopKind::Arrival(seq.4, seq.2),
         })
@@ -273,34 +314,6 @@ fn parse_day_footnote(input: &mut &str) -> PResult<Footnote> {
     .parse_next(input)
 }
 
-fn parse_record(input: &mut &str) -> PResult<Record> {
-    preceded(
-        '#',
-        (
-            dec_uint_leading,
-            line_ending,
-            repeat(0.., parse_ride_id),
-            parse_day_footnote,
-            take_till(0.., '&').void(),
-            parse_transit_mode,
-            take_till(0.., '>').void(),
-            repeat(1.., any_entry),
-        ),
-    )
-    .map(
-        |seq: (_, _, _, _, _, TransitMode, _, Vec<TimetableEntry>)| {
-            Record {
-                id: seq.0,
-                timetable: seq.7,
-                ride_id: seq.2,
-                day_validity_footnote: seq.3.footnote, // NONSTANDARD assuming date footnotes span the entire length of a record
-                transit_types: vec![seq.5],
-            }
-        },
-    )
-    .parse_next(input)
-}
-
 #[cfg(test)]
 mod test_record {
     use pretty_assertions::assert_eq;
@@ -311,8 +324,9 @@ mod test_record {
     use crate::{
         dayoffset::DayOffset,
         iff::{
-            parsing::{dec_uint_leading, TransitMode},
-            Platform, PlatformInfo, Ride, RideId, StopKind, TimetableEntry,
+            parsing::{dec_uint_leading, timetable::RecordParser, TransitMode},
+            LocationCache, LocationCodeHandle, Platform, PlatformInfo, Ride, RideId, StopKind,
+            TimetableEntry,
         },
     };
 
@@ -327,23 +341,29 @@ mod test_record {
     }
 
     macro_rules! entry {
-        ($station:literal,$stop:expr) => {
+        ($handle:expr,$stop:expr) => {
             TimetableEntry {
-                code: $station.to_owned(),
+                code: $handle,
                 stop_kind: $stop,
             }
         };
     }
 
-    use super::parse_record;
+    // use super::parse_record;
 
     #[test]
     fn test_record_split() -> TestResult {
-        let record = parse_record
+        let mut locations = LocationCache::new();
+        let mut record_parser = RecordParser {
+            locations: &mut locations,
+        };
+        let record = record_parser
             .parse(include_str!("../testdata/record1"))
             .unwrap();
 
         let rides = record.split_on_ride_id();
+
+        let code = |a: &'static str| locations.lookup_handle(a).unwrap();
 
         assert_eq!(rides.len(), 2);
         #[allow(clippy::get_first)]
@@ -357,15 +377,15 @@ mod test_record {
                 transit_mode: "IC".to_owned(),
                 timetable: vec![
                     entry!(
-                        "rtd",
+                        code("rtd"),
                         StopKind::Departure(
                             Some(platform!(13, 3)),
                             DayOffset::from_hour_minute(18, 50)
                         )
                     ),
-                    entry!("rtn", StopKind::Waypoint),
+                    entry!(code("rtn"), StopKind::Waypoint),
                     TimetableEntry {
-                        code: "rta".to_owned(),
+                        code: code(&"rta"),
                         stop_kind: StopKind::StopShort(
                             Some(PlatformInfo {
                                 arrival_platform: Some(Platform::plain(1)),
@@ -375,23 +395,23 @@ mod test_record {
                             DayOffset::from_hour_minute(18, 58)
                         )
                     },
-                    entry!("cps", StopKind::Waypoint),
-                    entry!("nwk", StopKind::Waypoint),
+                    entry!(code("cps"), StopKind::Waypoint),
+                    entry!(code("nwk"), StopKind::Waypoint),
                     entry!(
-                        "gd",
+                        code("gd"),
                         StopKind::StopLong(
                             Some(platform!(3, 3)),
                             DayOffset::from_hour_minute(19, 8),
                             DayOffset::from_hour_minute(19, 9)
                         )
                     ),
-                    entry!("gdg", StopKind::Waypoint),
-                    entry!("wd", StopKind::Waypoint),
-                    entry!("vtn", StopKind::Waypoint),
-                    entry!("utt", StopKind::Waypoint),
-                    entry!("utlr", StopKind::Waypoint),
+                    entry!(code("gdg"), StopKind::Waypoint),
+                    entry!(code("wd"), StopKind::Waypoint),
+                    entry!(code("vtn"), StopKind::Waypoint),
+                    entry!(code("utt"), StopKind::Waypoint),
+                    entry!(code("utlr"), StopKind::Waypoint),
                     entry!(
-                        "ut",
+                        code("ut"),
                         StopKind::Arrival(
                             Some(platform!(11, 3)),
                             DayOffset::from_hour_minute(19, 28)
@@ -411,17 +431,17 @@ mod test_record {
                 transit_mode: "IC".to_owned(),
                 timetable: vec![
                     entry!(
-                        "ut",
+                        code("ut"),
                         StopKind::Departure(
                             Some(platform!(11, 3)),
                             DayOffset::from_hour_minute(19, 36)
                         )
                     ),
-                    entry!("uto", StopKind::Waypoint),
-                    entry!("bhv", StopKind::Waypoint),
-                    entry!("dld", StopKind::Waypoint),
+                    entry!(code("uto"), StopKind::Waypoint),
+                    entry!(code("bhv"), StopKind::Waypoint),
+                    entry!(code("dld"), StopKind::Waypoint),
                     entry!(
-                        "amf",
+                        code("amf"),
                         StopKind::Arrival(
                             Some(platform!(2, 3)),
                             DayOffset::from_hour_minute(19, 50)
@@ -439,7 +459,13 @@ mod test_record {
 
     #[test]
     fn test_record_parse() -> TestResult {
-        let record = parse_record.parse(include_str!("../testdata/record1"))?;
+        let mut locations = LocationCache::new();
+        let mut record_parser = RecordParser {
+            locations: &mut locations,
+        };
+
+        let record = record_parser.parse(include_str!("../testdata/record1"))?;
+        let code = |a: &'static str| locations.lookup_handle(a).unwrap();
 
         assert_eq!(record.id, 2);
 
@@ -479,7 +505,7 @@ mod test_record {
         assert_eq!(
             record.timetable.first().unwrap(),
             &TimetableEntry {
-                code: "rtd".to_owned(),
+                code: code("rtd"),
                 stop_kind: StopKind::Departure(
                     Some(PlatformInfo {
                         departure_platform: Some(Platform::plain(13)),
@@ -496,8 +522,12 @@ mod test_record {
     #[test]
     fn record_parse_2() -> Result<(), String> {
         let input = include_str!("../testdata/record2");
+        let mut locations = LocationCache::new();
+        let mut record_parser = RecordParser {
+            locations: &mut locations,
+        };
 
-        parse_record.parse(input).map_err(|e| e.to_string())?;
+        record_parser.parse(input).map_err(|e| e.to_string())?;
 
         Ok(())
     }
@@ -505,8 +535,12 @@ mod test_record {
     #[test]
     fn test_parse_3() -> Result<(), String> {
         let input = include_str!("../testdata/record3");
+        let mut locations = LocationCache::new();
+        let mut record_parser = RecordParser {
+            locations: &mut locations,
+        };
 
-        parse_record.parse(input).map_err(|e| e.to_string())?;
+        record_parser.parse(input).map_err(|e| e.to_string())?;
 
         Ok(())
     }
@@ -515,8 +549,12 @@ mod test_record {
     #[test]
     fn test_parse_4() -> TestResult {
         let input = include_str!("../testdata/record4");
+        let mut locations = LocationCache::new();
+        let mut record_parser = RecordParser {
+            locations: &mut locations,
+        };
 
-        parse_record.parse(input).map_err(|e| e.to_string())?;
+        record_parser.parse(input).map_err(|e| e.to_string())?;
 
         Ok(())
     }

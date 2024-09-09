@@ -1,5 +1,5 @@
 use std::{
-    collections::HashMap,
+    collections::{BTreeMap, HashMap},
     fs::File,
     io::{self, Cursor, Read},
     str::FromStr,
@@ -9,7 +9,7 @@ use chrono::NaiveDate;
 use parsing::{
     parse_company_file, parse_delivery_file, parse_footnote_file, parse_timetable_file, CompanyFile,
 };
-use serde::Serialize;
+use serde::{Serialize, Serializer};
 use winnow::Parser;
 
 use crate::dayoffset::DayOffset;
@@ -51,6 +51,10 @@ impl Iff {
 
     pub fn timetable_mut(&mut self) -> &mut TimeTable {
         &mut self.timetable
+    }
+
+    pub fn rides_mut(&mut self) -> &mut Vec<Record> {
+        &mut self.timetable.rides
     }
 
     pub fn validity(&self) -> &RideValidity {
@@ -122,8 +126,55 @@ fn read_file_from_archive(archive: impl Read + io::Seek, filename: &str) -> Resu
 
 #[derive(PartialEq, Debug, Eq, Clone, Serialize)]
 pub struct TimetableEntry {
-    pub code: String,
+    pub code: LocationCodeHandle,
     pub stop_kind: StopKind,
+}
+
+impl TimetableEntry {
+    fn serializable<'a, 'b>(&'a self, cache: &'b LocationCache) -> TimetableEntryContext
+    where
+        'b: 'a,
+    {
+        TimetableEntryContext {
+            entry: self,
+            context: cache,
+        }
+    }
+}
+
+pub struct TimetableEntryContext<'e, 'c> {
+    pub entry: &'e TimetableEntry,
+    pub context: &'c LocationCache,
+}
+
+impl<'e, 'c> Serialize for TimetableEntryContext<'e, 'c> {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        let code = self.context.get_str(&self.entry.code).unwrap();
+
+        TimetableEntryRaw {
+            stop_kind: self.entry.stop_kind.clone(),
+            code,
+        }
+        .serialize(serializer)
+    }
+}
+
+#[derive(Serialize)]
+struct TimetableEntryRaw<'a> {
+    pub code: &'a str,
+    pub stop_kind: StopKind,
+}
+
+impl<'a> TimetableEntryRaw<'a> {
+    pub fn to_proper(&self, cache: &mut LocationCache) -> TimetableEntry {
+        TimetableEntry {
+            code: cache.get_handle(self.code),
+            stop_kind: self.stop_kind.clone(),
+        }
+    }
 }
 
 #[derive(Debug, PartialEq, Clone, Eq, Serialize)]
@@ -184,6 +235,60 @@ impl FromStr for Platform {
 
         Err(PlatformParseError)
         // common case
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize)]
+#[serde(transparent)]
+pub struct LocationCodeHandle {
+    inner: u16,
+}
+
+#[derive(Clone, Debug, Serialize)]
+pub struct LocationCache {
+    storage: Vec<Box<str>>,
+    lookup: HashMap<Box<str>, u16>,
+}
+
+impl LocationCache {
+    pub fn new() -> Self {
+        Self {
+            lookup: HashMap::new(),
+            storage: Vec::new(),
+        }
+    }
+
+    pub fn with_capacity(size: usize) -> Self {
+        Self {
+            lookup: HashMap::with_capacity(size),
+            storage: Vec::with_capacity(size),
+        }
+    }
+
+    pub fn get_handle(&mut self, code: &str) -> LocationCodeHandle {
+        if let Some(index) = self.lookup.get(code) {
+            LocationCodeHandle { inner: *index }
+        } else {
+            self.storage.push(code.into());
+
+            // Index of the storage entry we just pushed
+            let latest_index = self.storage.len() - 1;
+            self.lookup.insert(code.into(), latest_index as u16);
+
+            LocationCodeHandle {
+                inner: latest_index as u16,
+            }
+        }
+    }
+
+    pub fn lookup_handle(&self, code: &str) -> Option<LocationCodeHandle> {
+        self.lookup
+            .get(code)
+            .map(|idx| LocationCodeHandle { inner: *idx })
+    }
+
+    pub fn get_str(&self, h: &LocationCodeHandle) -> Option<&str> {
+        self.storage.get(h.inner as usize).map(|bx| bx.as_ref())
     }
 }
 
@@ -267,6 +372,7 @@ struct DayValidityFootnote {
 pub struct TimeTable {
     pub header: Header,
     pub rides: Vec<Record>,
+    pub locations: LocationCache,
 }
 
 pub struct RideValidity {
@@ -302,7 +408,7 @@ pub struct RideId {
     ride_name: Option<String>,
 }
 
-#[derive(PartialEq, Debug, Eq, Clone, Serialize)]
+#[derive(PartialEq, Debug, Eq, Clone)]
 pub struct Record {
     pub id: u64,
     pub timetable: Vec<TimetableEntry>,
@@ -329,26 +435,25 @@ pub struct Ride {
 }
 
 impl Ride {
-    pub fn stop_at_code(&self, code: &str) -> Option<&TimetableEntry> {
+    pub fn stop_at_code(&self, code: &LocationCodeHandle) -> Option<&TimetableEntry> {
         self.timetable
             .iter()
-            .find(|entry| entry.code == code && !entry.stop_kind.is_waypoint())
+            .find(|entry| entry.code == *code && !entry.stop_kind.is_waypoint())
     }
     // TODO This needs to take footnotes into account for special trains eg international
-    pub fn boardable_at_code(&self, code: &str) -> bool {
+    pub fn boardable_at_code(&self, code: &LocationCodeHandle) -> bool {
         self.timetable
             .iter()
-            .any(|entry| entry.code == code && entry.stop_kind.is_boardable())
+            .any(|entry| entry.code == *code && entry.stop_kind.is_boardable())
     }
 }
 
-#[derive(Serialize)]
 pub enum LegKind {
-    Stationary(String, StopKind),
+    Stationary(LocationCodeHandle, StopKind),
     Moving {
-        from: String,
-        to: String,
-        waypoints: Vec<String>,
+        from: LocationCodeHandle,
+        to: LocationCodeHandle,
+        waypoints: Vec<LocationCodeHandle>,
     },
 }
 
@@ -364,7 +469,7 @@ impl LegKind {
         )
     }
 
-    pub fn waypoints(&self) -> Option<&Vec<String>> {
+    pub fn waypoints(&self) -> Option<&Vec<LocationCodeHandle>> {
         match self {
             Self::Stationary(_, _) => None,
             Self::Moving {
@@ -375,7 +480,7 @@ impl LegKind {
         }
     }
 
-    pub fn from(&self) -> Option<&String> {
+    pub fn from(&self) -> Option<&LocationCodeHandle> {
         match self {
             Self::Stationary(_, _) => None,
             Self::Moving {
@@ -386,7 +491,7 @@ impl LegKind {
         }
     }
 
-    pub fn to(&self) -> Option<&String> {
+    pub fn to(&self) -> Option<&LocationCodeHandle> {
         match self {
             Self::Stationary(_, _) => None,
             Self::Moving {
@@ -397,7 +502,7 @@ impl LegKind {
         }
     }
 
-    pub fn station_code(&self) -> Option<&String> {
+    pub fn station_code(&self) -> Option<&LocationCodeHandle> {
         match self {
             Self::Stationary(code, _) => Some(code),
             Self::Moving {
@@ -427,11 +532,10 @@ impl LegKind {
     }
 }
 
-#[derive(Serialize)]
 pub struct Leg {
     pub start: DayOffset,
     pub end: DayOffset,
-    #[serde(flatten)]
+    // #[serde(flatten)]
     pub kind: LegKind,
 }
 

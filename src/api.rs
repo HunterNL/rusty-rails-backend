@@ -32,11 +32,13 @@ use crate::{
 
 use self::datarepo::DataRepo;
 
-pub struct ApiObject<'a, T: ?Sized>(&'a T);
+pub struct ApiObject<'a, T: ?Sized> {
+    inner: &'a T,
+}
 
 pub trait IntoAPIObject {
-    fn as_api_object(&self) -> ApiObject<'_, Self> {
-        ApiObject(self)
+    fn as_api_object<'a>(&'a self) -> ApiObject<'_, Self> {
+        ApiObject { inner: &self }
     }
 }
 
@@ -54,22 +56,22 @@ fn stopkind_to_num(stop_kind: &StopKind) -> u8 {
     }
 }
 
-impl<'a> Serialize for ApiObject<'a, Leg> {
+impl<'a, 'b> Serialize for ApiObject<'a, Leg> {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: serde::Serializer,
     {
         let mut leg = serializer.serialize_struct("leg", 9)?;
-        leg.serialize_field("timeStart", &self.0.start)?;
-        leg.serialize_field("timeEnd", &self.0.end)?;
-        leg.serialize_field("moving", &self.0.kind.is_moving())?;
-        leg.serialize_field("waypoints", &self.0.kind.waypoints())?;
-        leg.serialize_field("from", &self.0.kind.from())?;
-        leg.serialize_field("to", &self.0.kind.to())?;
-        leg.serialize_field("stationCode", &self.0.kind.station_code())?;
-        leg.serialize_field("platform", &self.0.kind.platform_info())?;
+        leg.serialize_field("timeStart", &self.inner.start)?;
+        leg.serialize_field("timeEnd", &self.inner.end)?;
+        leg.serialize_field("moving", &self.inner.kind.is_moving())?;
+        leg.serialize_field("waypoints", self.inner.kind.waypoints().unwrap())?;
+        leg.serialize_field("from", &self.inner.kind.from())?;
+        leg.serialize_field("to", &self.inner.kind.to())?;
+        leg.serialize_field("stationCode", &self.inner.kind.station_code())?;
+        leg.serialize_field("platform", &self.inner.kind.platform_info())?;
 
-        let stoptype = match &self.0.kind {
+        let stoptype = match &self.inner.kind {
             LegKind::Stationary(_, stop_kind) => Some(stopkind_to_num(stop_kind)),
             LegKind::Moving {
                 from: _,
@@ -89,16 +91,16 @@ impl<'a> Serialize for ApiObject<'a, Record> {
         S: serde::Serializer,
     {
         let mut record = serializer.serialize_struct("ride", 7)?;
-        record.serialize_field("id", &self.0.id)?;
-        record.serialize_field("startTime", &self.0.start_time())?;
-        record.serialize_field("endTime", &self.0.end_time())?;
+        record.serialize_field("id", &self.inner.id)?;
+        record.serialize_field("startTime", &self.inner.start_time())?;
+        record.serialize_field("endTime", &self.inner.end_time())?;
         record.serialize_field("distance", &0)?;
         record.serialize_field("dayValidity", &0)?;
-        record.serialize_field("rideIds", &self.0.ride_id)?;
+        record.serialize_field("rideIds", &self.inner.ride_id)?;
         record.serialize_field(
             "legs",
             &self
-                .0
+                .inner
                 .generate_legs()
                 .iter()
                 .map(|l| l.as_api_object())
@@ -114,16 +116,16 @@ impl<'a> Serialize for ApiObject<'a, Ride> {
         S: serde::Serializer,
     {
         let mut ride = serializer.serialize_struct("ride", 7)?;
-        ride.serialize_field("id", &self.0.id)?;
-        ride.serialize_field("startTime", &self.0.start_time())?;
-        ride.serialize_field("endTime", &self.0.end_time())?;
+        ride.serialize_field("id", &self.inner.id)?;
+        ride.serialize_field("startTime", &self.inner.start_time())?;
+        ride.serialize_field("endTime", &self.inner.end_time())?;
         ride.serialize_field("distance", &0)?;
         ride.serialize_field("dayValidity", &0)?;
-        ride.serialize_field("id", &self.0.id)?;
+        ride.serialize_field("id", &self.inner.id)?;
         ride.serialize_field(
             "legs",
             &self
-                .0
+                .inner
                 .generate_legs()
                 .iter()
                 .map(|l| l.as_api_object())

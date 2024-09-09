@@ -2,9 +2,11 @@ use std::{fs::File, io::BufReader};
 
 use serde::{Deserialize, Serialize};
 
+use crate::iff::{LocationCache, LocationCodeHandle};
+
 use super::LinkCode;
 
-pub fn extract_links(file: &File) -> Vec<Link> {
+pub fn extract_links(file: &File, mut locations: &mut LocationCache) -> Vec<Link> {
     let reader = BufReader::new(file);
 
     // Parse into serde_json::Value first to easily navigate down the json data
@@ -29,7 +31,7 @@ pub fn extract_links(file: &File) -> Vec<Link> {
 
     links
         .into_iter()
-        .map(|l| Link::new_from_json_link(&l))
+        .map(|l| Link::new_from_json_link(&l, locations))
         .collect()
 }
 
@@ -54,13 +56,18 @@ impl Coords2D {
 }
 
 /// A path between two timetable points
-#[derive(Debug, Serialize, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct Link {
     // id: u32,
-    from: String,
-    to: String,
+    from: LocationCodeHandle,
+    to: LocationCodeHandle,
     path: Path,
 }
+
+// struct LinkSerializable<'a, 'b> {
+//     inner: &'a Link,
+//     location_cache: &'b LocationCache,
+// }
 
 impl PartialEq for Link {
     fn eq(&self, other: &Self) -> bool {
@@ -69,20 +76,8 @@ impl PartialEq for Link {
 }
 
 impl Link {
-    // fn from(&self) -> &str {
-    //     &self.from
-    // }
-
-    // fn to(&self) -> &str {
-    //     &self.to
-    // }
-
-    // fn path(&self) -> &Path {
-    //     &self.path
-    // }
-
     pub fn link_code(&self) -> LinkCode {
-        LinkCode(self.from.clone(), self.to.clone())
+        LinkCode(self.from, self.to)
     }
 }
 
@@ -156,10 +151,13 @@ struct PathPoint {
 }
 
 impl Link {
-    fn new_from_json_link(json: &JsonLink) -> Self {
+    fn new_from_json_link(json: &JsonLink, location_cache: &mut LocationCache) -> Self {
+        let from = location_cache.get_handle(&json.properties.from);
+        let to = location_cache.get_handle(&json.properties.to);
+
         Self {
-            from: json.properties.from.clone(),
-            to: json.properties.to.clone(),
+            from,
+            to,
             path: Path::new_from_coords(&json.geometry.coordinates),
         }
     }

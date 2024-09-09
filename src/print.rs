@@ -31,6 +31,7 @@ fn print_departures(data: &DataRepo, name_or_code: &str) -> Result<(), String> {
         .ok_or("failed to find station")?;
 
     let code = &station.code;
+    let handle = data.location_cache().lookup_handle(code).unwrap();
 
     println!("{}", station.name);
 
@@ -39,7 +40,7 @@ fn print_departures(data: &DataRepo, name_or_code: &str) -> Result<(), String> {
     let mut active_rides =
         data.rides_active_in_timespan(&now.time(), &future.time(), &now.date_naive());
 
-    active_rides.retain(|ride| ride.boardable_at_code(code));
+    active_rides.retain(|ride| ride.boardable_at_code(&handle));
 
     // Timestamp before which are hide departures, since they're too far in the past to be relevant
     let cutoff_time_start = DayOffset::from_naivetime(&now.time());
@@ -49,7 +50,7 @@ fn print_departures(data: &DataRepo, name_or_code: &str) -> Result<(), String> {
     // And filter these to trains that depart between `cutoff_time_start` and `cutoff_time_end`
     let mut ride_and_stop: Vec<_> = active_rides
         .into_iter()
-        .map(|ride| (ride, ride.stop_at_code(code).unwrap()))
+        .map(|ride| (ride, ride.stop_at_code(&handle).unwrap()))
         .filter(|(_, stop)| {
             stop.stop_kind.departure_time().unwrap() > &cutoff_time_start
                 && stop.stop_kind.departure_time().unwrap() < &cutoff_time_end
@@ -66,9 +67,13 @@ fn print_departures(data: &DataRepo, name_or_code: &str) -> Result<(), String> {
                 .departure_time()
                 .unwrap()
                 .display_for_timetable(),
-            data.station_by_code(&ride.timetable.last().unwrap().code)
-                .unwrap()
-                .name,
+            data.station_by_code(
+                data.location_cache()
+                    .get_str(&ride.timetable.last().unwrap().code)
+                    .unwrap()
+            )
+            .unwrap()
+            .name,
         )
     }
 
