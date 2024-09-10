@@ -1,5 +1,5 @@
 use std::{
-    collections::{BTreeMap, HashMap},
+    collections::HashMap,
     fs::File,
     io::{self, Cursor, Read},
     str::FromStr,
@@ -9,8 +9,8 @@ use chrono::NaiveDate;
 use parsing::{
     parse_company_file, parse_delivery_file, parse_footnote_file, parse_timetable_file, CompanyFile,
 };
-use serde::{Serialize, Serializer};
-use winnow::Parser;
+use serde::Serialize;
+use winnow::{BStr, Parser};
 
 use crate::dayoffset::DayOffset;
 
@@ -70,7 +70,11 @@ impl Iff {
     }
 
     fn parse_timetable(archive: impl Read + io::Seek) -> Result<TimeTable, String> {
-        let content = read_string_from_archive(archive, TIMETABLE_FILE_NAME)?;
+        let content = read_bytes_from_archive(archive, TIMETABLE_FILE_NAME)?;
+        let content = BStr::new(&content);
+        if !content.is_ascii() {
+            return Err("Expected timetable file to be valid ASCII".to_owned());
+        }
 
         parse_timetable_file
             .parse(&content)
@@ -79,6 +83,10 @@ impl Iff {
 
     fn parse_validity(archive: impl Read + io::Seek) -> Result<RideValidity, String> {
         let content = read_string_from_archive(archive, FOOTNOTE_FILE_NAME)?;
+        let content = BStr::new(&content);
+        if !content.is_ascii() {
+            return Err("Expected timetable file to be valid ASCII".to_owned());
+        }
 
         parse_footnote_file
             .parse(&content)
@@ -87,21 +95,33 @@ impl Iff {
 
     fn parse_companies(archive: impl Read + io::Seek) -> Result<CompanyFile, String> {
         let content = read_string_from_archive(archive, COMPANY_FILE_NAME)?;
+        let content = BStr::new(&content);
+        if !content.is_ascii() {
+            return Err("Expected timetable file to be valid ASCII".to_owned());
+        }
 
-        parse_company_file(content.as_str()).map_err(|o| o.to_string())
+        parse_company_file(&content).map_err(|o| o.to_string())
     }
 
     pub fn parse_delivery(archive: impl Read + io::Seek) -> Result<Header, String> {
         let content = read_string_from_archive(archive, HEADER_FILENAME)?;
+        let content = BStr::new(&content);
+        if !content.is_ascii() {
+            return Err("Expected timetable file to be valid ASCII".to_owned());
+        }
 
-        parse_delivery_file(content.as_str()).map_err(|o| o.to_string())
+        parse_delivery_file(&content).map_err(|o| o.to_string())
     }
 
     pub fn parse_version_only(data: &[u8]) -> Result<u64, String> {
         let cursor = Cursor::new(data);
-        let delivery_file = read_string_from_archive(cursor, HEADER_FILENAME)?;
+        let content = read_bytes_from_archive(cursor, HEADER_FILENAME)?;
+        let content = BStr::new(&content);
+        if !content.is_ascii() {
+            return Err("Expected timetable file to be valid ASCII".to_owned());
+        }
 
-        parse_delivery_file(&delivery_file)
+        parse_delivery_file(&content)
             .map_err(|e| e.to_string())
             .map(|h| h.version)
     }
@@ -121,8 +141,7 @@ fn read_string_from_archive(
     file.read_to_end(&mut buf).map_err(|e| e.to_string())?;
 
     // File should be ISO 8859-1 / Latin1, this should work fine
-    let str_content =
-        std::str::from_utf8(buf.as_slice()).map_err(|_| "file contained invalid utf-8")?;
+    let str_content = String::from_utf8(buf).map_err(|_| "file contained invalid utf-8")?;
 
     Ok(str_content.to_owned())
 }
@@ -138,6 +157,10 @@ fn read_bytes_from_archive(
 
     let mut buf = vec![];
     file.read_to_end(&mut buf).map_err(|e| e.to_string())?;
+
+    if !buf.is_ascii() {
+        return Err("File is not valid ASCII".into());
+    }
 
     Ok(buf)
 }

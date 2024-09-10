@@ -1,6 +1,8 @@
 use chrono::NaiveDate;
+
 use serde::Serialize;
 use std::fmt::Display;
+
 use winnow::error::ParseError;
 
 use winnow::ascii::{dec_uint, line_ending, multispace0, Uint};
@@ -9,7 +11,7 @@ use winnow::combinator::{alt, delimited, fail, opt};
 use winnow::stream::AsChar;
 
 use winnow::token::{take, take_till, take_until, take_while};
-use winnow::{PResult, Parser};
+use winnow::{BStr, PResult, Parser};
 
 use crate::dayoffset::DayOffset;
 
@@ -21,11 +23,11 @@ mod company;
 pub use company::parse_company_file;
 pub use company::CompanyFile;
 
-pub type Stream<'s> = &'s str;
+pub type Stream<'s> = &'s BStr;
 
 pub fn parse_delivery_file(
-    input: &str,
-) -> Result<Header, ParseError<&str, winnow::error::ContextError>> {
+    input: Stream,
+) -> Result<Header, ParseError<Stream, winnow::error::ContextError>> {
     parse_header.parse(input)
 }
 
@@ -54,7 +56,10 @@ fn seperator(input: &mut Stream) -> PResult<()> {
     (multispace0, ',').void().parse_next(input)
 }
 
-fn dec_uint_leading<Output: Uint + Clone>(input: &mut Stream) -> PResult<Output> {
+fn dec_uint_leading<Output>(input: &mut Stream) -> PResult<Output>
+where
+    Output: Uint + Clone,
+{
     alt((
         (take_while(0.., '0'), dec_uint).map(|a| a.1),
         (take_while(1.., '0')).value(Output::try_from_dec_uint("0").unwrap()),
@@ -64,22 +69,35 @@ fn dec_uint_leading<Output: Uint + Clone>(input: &mut Stream) -> PResult<Output>
     .parse_next(input)
 }
 
+// fn dec_uint_leading_bytes<Output>(input: &mut Stream) -> PResult<Output>
+// where
+//     Output: Uint + Clone,
+// {
+//     alt((
+//         (take_while(0.., b'0'), dec_uint).map(|a| a.1),
+//         (take_while(1.., b'0')).value(Output::try_from_dec_uint("0").unwrap()),
+//         // (take_while(1.., '0')).value(0),
+//         fail,
+//     ))
+//     .parse_next(input)
+// }
+
 fn parse_header(input: &mut Stream) -> PResult<Header> {
     // separated(1.., "100", ',').parse_peek(input)
     trace(
         "header",
         delimited(
-            '@',
+            b'@',
             (
                 dec_uint_leading,
-                ',',
+                b',',
                 parse_date,
-                ',',
+                b',',
                 parse_date,
-                ',',
-                dec_uint_leading,
-                ',',
-                take_till(1.., |a: char| a.is_newline()),
+                b',',
+                dec_uint_leading::<u64>,
+                b',',
+                take_till(1.., |a: u8| a.is_newline()),
             ),
             opt(line_ending),
         ),
@@ -90,13 +108,15 @@ fn parse_header(input: &mut Stream) -> PResult<Header> {
         first_valid_date: res.2,
         last_valid_date: res.4,
         version: res.6,
-        description: res.8.to_owned(),
+        description: unsafe { std::str::from_utf8_unchecked(res.8).to_owned() },
     })
 }
 
 fn parse_date(input: &mut Stream) -> PResult<NaiveDate> {
     take(DATE_FORMAT_LEN)
-        .try_map(|s| NaiveDate::parse_from_str(s, DATE_FORMAT))
+        .try_map(|s| {
+            NaiveDate::parse_from_str(unsafe { std::str::from_utf8_unchecked(s) }, DATE_FORMAT)
+        })
         .parse_next(input)
 }
 
@@ -106,7 +126,7 @@ mod test_parse_date {
 
     #[test]
     fn date_parsing() {
-        let input = "01022023";
+        let input: Stream = "01022023".into();
         let expected = NaiveDate::from_ymd_opt(2023, 2, 1).expect("Valid date");
 
         assert_eq!(super::parse_date.parse(input).unwrap(), expected);
@@ -114,7 +134,11 @@ mod test_parse_date {
 }
 
 fn parse_time(input: &mut Stream) -> PResult<DayOffset> {
-    trace("time", take(4u8).try_map(|s: &str| s.parse())).parse_next(input)
+    trace(
+        "time",
+        take(4u8).try_map(|s: &[u8]| unsafe { std::str::from_utf8_unchecked(s).parse() }),
+    )
+    .parse_next(input)
 }
 
 #[cfg(test)]
@@ -123,7 +147,7 @@ mod header_tests {
 
     #[test]
     fn test_header_parse() {
-        let input = "@100,03072023,04082024,0052,Content description";
+        let input: Stream = "@100,03072023,04082024,0052,Content description".into();
 
         let output = parse_header.parse(input).unwrap();
 
@@ -347,11 +371,13 @@ pub struct TransitMode {
     last_stop: u32,
 }
 
-fn till_comma<'s>(input: &mut Stream<'s>) -> PResult<&'s str> {
-    take_till(0.., |c| c == ',').parse_next(input)
+fn till_comma<'b, 's>(input: &mut Stream<'s>) -> PResult<Stream<'s>> {
+    take_till(0.., |c| c == b',')
+        .parse_next(input)
+        .map(|s| s.into())
 }
 
-fn untill_newline<'s>(input: &mut Stream<'s>) -> PResult<&'s str> {
+fn untill_newline<'s>(input: &mut Stream<'s>) -> PResult<&'s [u8]> {
     take_until(0.., IFF_NEWLINE).parse_next(input)
 }
 
@@ -368,7 +394,7 @@ fn parse_transit_mode(input: &mut Stream) -> PResult<TransitMode> {
     )
         .parse_next(input)
         .map(|seq| TransitMode {
-            mode: seq.1.trim().to_owned(),
+            mode: std::str::from_utf8(seq.1).unwrap().trim().into(),
             first_stop: seq.3,
             last_stop: seq.5,
         })

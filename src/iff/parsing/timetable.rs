@@ -19,15 +19,17 @@ use super::{
 };
 
 fn parse_single_day(input: &mut Stream) -> PResult<bool> {
-    one_of(['0', '1']).map(|char| char == '1').parse_next(input)
+    one_of(['0', '1'])
+        .map(|char| char == b'1')
+        .parse_next(input)
 }
 
 struct RecordParser<'a> {
     locations: &'a mut LocationCache,
 }
 
-impl<'a> Parser<&str, Record, winnow::error::ContextError> for RecordParser<'a> {
-    fn parse_next(&mut self, input: &mut Stream) -> PResult<Record> {
+impl<'a, 'b> Parser<Stream<'a>, Record, winnow::error::ContextError> for RecordParser<'b> {
+    fn parse_next(&mut self, input: &mut &'a winnow::BStr) -> PResult<Record> {
         preceded(
             '#',
             (
@@ -95,7 +97,7 @@ pub fn parse_timetable_file<'s>(input: &mut Stream<'s>) -> PResult<TimeTable> {
 }
 
 fn parse_records(input: &mut Stream) -> PResult<(Vec<Record>, LocationCache)> {
-    let estimate_record_count = input.matches('#').count();
+    let estimate_record_count = input.iter().filter(|b| b == &&b'#').count();
     let mut accumulator = Vec::with_capacity(estimate_record_count);
 
     const ESTIMATE_UNIQUE_LOCATION_CODES: usize = 1000;
@@ -133,8 +135,12 @@ fn parse_platform_info(input: &mut Stream) -> PResult<PlatformInfo> {
     )
     .parse_next(input)
     .map(|seq| PlatformInfo {
-        arrival_platform: seq.1.map(|s| Platform::from_str(s).unwrap()),
-        departure_platform: seq.4.map(|s| Platform::from_str(s).unwrap()),
+        arrival_platform: seq
+            .1
+            .map(|s| Platform::from_str(std::str::from_utf8(s).unwrap()).unwrap()),
+        departure_platform: seq
+            .4
+            .map(|s| Platform::from_str(std::str::from_utf8(s).unwrap()).unwrap()),
         footnote: seq.7,
     })
 }
@@ -150,18 +156,18 @@ fn parse_departure<'s>(input: &mut Stream<'s>) -> PResult<TimetableEntryRaw<'s>>
     )
         .parse_next(input)
         .map(|seq| TimetableEntryRaw {
-            code: seq.0,
+            code: unsafe { std::str::from_utf8_unchecked(seq.0) },
             stop_kind: StopKind::Departure(seq.5, seq.3),
         })
 }
 
 fn any_entry<'s>(input: &mut Stream<'s>) -> PResult<TimetableEntryRaw<'s>> {
     dispatch! {winnow::token::any;
-            '>' => parse_departure,
-            ';' => parse_waypoint,
-            '.' => parse_stop_short,
-            '+' => parse_stop_long,
-            '<' => parse_arrival,
+            b'>' => parse_departure,
+            b';' => parse_waypoint,
+            b'.' => parse_stop_short,
+            b'+' => parse_stop_long,
+            b'<' => parse_arrival,
             _ => fail,
     }
     .parse_next(input)
@@ -171,12 +177,12 @@ fn parse_waypoint<'s>(input: &mut Stream<'s>) -> PResult<TimetableEntryRaw<'s>> 
     (parse_code, opt(line_ending))
         .parse_next(input)
         .map(|seq| TimetableEntryRaw {
-            code: seq.0,
+            code: unsafe { std::str::from_utf8_unchecked(seq.0) },
             stop_kind: StopKind::Waypoint,
         })
 }
 
-fn parse_code<'s>(input: &mut Stream<'s>) -> PResult<&'s str> {
+fn parse_code<'s>(input: &mut Stream<'s>) -> PResult<&'s [u8]> {
     terminated(alphanumeric1, multispace0).parse_next(input)
 }
 
@@ -190,7 +196,7 @@ fn parse_stop_short<'s>(input: &mut Stream<'s>) -> PResult<TimetableEntryRaw<'s>
     )
         .parse_next(input)
         .map(|seq| TimetableEntryRaw {
-            code: seq.0,
+            code: unsafe { std::str::from_utf8_unchecked(seq.0) },
             stop_kind: StopKind::StopShort(seq.4, seq.2),
         })
 }
@@ -207,7 +213,7 @@ fn parse_stop_long<'s>(input: &mut Stream<'s>) -> PResult<TimetableEntryRaw<'s>>
     )
         .parse_next(input)
         .map(|seq| TimetableEntryRaw {
-            code: seq.0,
+            code: unsafe { std::str::from_utf8_unchecked(seq.0) },
             stop_kind: StopKind::StopLong(seq.6, seq.2, seq.4),
         })
 }
@@ -222,7 +228,7 @@ fn parse_arrival<'s>(input: &mut Stream<'s>) -> PResult<TimetableEntryRaw<'s>> {
     )
         .parse_next(input)
         .map(|seq| TimetableEntryRaw {
-            code: seq.0,
+            code: unsafe { std::str::from_utf8_unchecked(seq.0) },
             stop_kind: StopKind::Arrival(seq.4, seq.2),
         })
 }
@@ -233,7 +239,7 @@ mod test_platform_parse {
 
     #[test]
     fn test_platform_parse() {
-        let input = "?11 ,15 ,00003";
+        let input = "?11 ,15 ,00003".into();
         let expected = PlatformInfo {
             arrival_platform: Some(Platform::from_str("11").unwrap()),
             departure_platform: Some(Platform::from_str("15").unwrap()),
@@ -268,7 +274,8 @@ fn parse_ride_id(input: &mut Stream) -> PResult<RideId> {
             line_id: seq.5,
             first_stop: seq.8,
             last_stop: seq.10,
-            ride_name: empty_str_to_none(str::trim(seq.12)).map(std::borrow::ToOwned::to_owned),
+            ride_name: empty_str_to_none(unsafe { std::str::from_utf8_unchecked(seq.12).trim() })
+                .map(std::borrow::ToOwned::to_owned),
         })
         .parse_next(input)
 }
@@ -290,7 +297,7 @@ mod test_rideid_parse {
             ride_name: None,
         };
 
-        assert_eq!(parse_ride_id.parse(input).unwrap(), expected);
+        assert_eq!(parse_ride_id.parse(input.into()).unwrap(), expected);
     }
 }
 
@@ -319,14 +326,13 @@ mod test_record {
     use pretty_assertions::assert_eq;
 
     use testresult::TestResult;
-    use winnow::Parser;
+    use winnow::{BStr, Parser};
 
     use crate::{
         dayoffset::DayOffset,
         iff::{
             parsing::{dec_uint_leading, timetable::RecordParser, TransitMode},
-            LocationCache, LocationCodeHandle, Platform, PlatformInfo, Ride, RideId, StopKind,
-            TimetableEntry,
+            LocationCache, Platform, PlatformInfo, Ride, RideId, StopKind, TimetableEntry,
         },
     };
 
@@ -353,13 +359,16 @@ mod test_record {
 
     #[test]
     fn test_record_split() -> TestResult {
+        let input = include_str!("../testdata/record1");
+        let input = BStr::new(input);
+        if !input.is_ascii() {
+            return Err("Input ins't ASCII".into());
+        }
         let mut locations = LocationCache::new();
         let mut record_parser = RecordParser {
             locations: &mut locations,
         };
-        let record = record_parser
-            .parse(include_str!("../testdata/record1"))
-            .unwrap();
+        let record = record_parser.parse(input).unwrap();
 
         let rides = record.split_on_ride_id();
 
@@ -385,7 +394,7 @@ mod test_record {
                     ),
                     entry!(code("rtn"), StopKind::Waypoint),
                     TimetableEntry {
-                        code: code(&"rta"),
+                        code: code("rta"),
                         stop_kind: StopKind::StopShort(
                             Some(PlatformInfo {
                                 arrival_platform: Some(Platform::plain(1)),
@@ -459,12 +468,17 @@ mod test_record {
 
     #[test]
     fn test_record_parse() -> TestResult {
+        let input = include_str!("../testdata/record1");
+        let input = BStr::new(input);
+        if !input.is_ascii() {
+            return Err("Input ins't ASCII".into());
+        }
         let mut locations = LocationCache::new();
         let mut record_parser = RecordParser {
             locations: &mut locations,
         };
 
-        let record = record_parser.parse(include_str!("../testdata/record1"))?;
+        let record = record_parser.parse(input)?;
         let code = |a: &'static str| locations.lookup_handle(a).unwrap();
 
         assert_eq!(record.id, 2);
@@ -522,6 +536,10 @@ mod test_record {
     #[test]
     fn record_parse_2() -> Result<(), String> {
         let input = include_str!("../testdata/record2");
+        let input = BStr::new(input);
+        if !input.is_ascii() {
+            return Err("Input ins't ASCII".into());
+        }
         let mut locations = LocationCache::new();
         let mut record_parser = RecordParser {
             locations: &mut locations,
@@ -535,6 +553,10 @@ mod test_record {
     #[test]
     fn test_parse_3() -> Result<(), String> {
         let input = include_str!("../testdata/record3");
+        let input = BStr::new(input);
+        if !input.is_ascii() {
+            return Err("Input ins't ASCII".into());
+        }
         let mut locations = LocationCache::new();
         let mut record_parser = RecordParser {
             locations: &mut locations,
@@ -549,6 +571,10 @@ mod test_record {
     #[test]
     fn test_parse_4() -> TestResult {
         let input = include_str!("../testdata/record4");
+        let input = BStr::new(input);
+        if !input.is_ascii() {
+            return Err("Input ins't ASCII".into());
+        }
         let mut locations = LocationCache::new();
         let mut record_parser = RecordParser {
             locations: &mut locations,
@@ -562,7 +588,7 @@ mod test_record {
     #[test]
     fn uint_content() {
         let out: u32 = (dec_uint_leading)
-            .parse("123")
+            .parse("123".into())
             .map_err(|e| e.to_string())
             .unwrap();
 
@@ -572,7 +598,7 @@ mod test_record {
     #[test]
     fn uint_leading_content() {
         let out: u32 = (dec_uint_leading)
-            .parse("000123")
+            .parse("000123".into())
             .map_err(|e| e.to_string())
             .unwrap();
 
@@ -582,7 +608,7 @@ mod test_record {
     #[test]
     fn uint_leading_empty() {
         let out: u32 = (dec_uint_leading)
-            .parse("000000")
+            .parse("000000".into())
             .map_err(|e| e.to_string())
             .unwrap();
 
@@ -591,7 +617,9 @@ mod test_record {
 
     #[test]
     fn uint_leading_none() {
-        let out: Result<u32, String> = (dec_uint_leading).parse("").map_err(|e| e.to_string());
+        let out: Result<u32, String> = (dec_uint_leading)
+            .parse("".into())
+            .map_err(|e| e.to_string());
 
         assert!(out.is_err())
     }

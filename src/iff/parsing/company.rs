@@ -14,9 +14,9 @@ pub fn parse_company(input: &mut Stream<'_>) -> PResult<Company> {
     (
         till_comma.and_then(dec_uint_leading),
         ",",
-        till_comma.map(|str| str.trim()),
+        till_comma.map(|s| unsafe { std::str::from_utf8_unchecked(s).trim() }),
         ',',
-        till_comma.map(|s| s.trim()),
+        till_comma.map(|s| unsafe { std::str::from_utf8_unchecked(s).trim() }),
         ',',
         parse_time,
         IFF_NEWLINE,
@@ -31,8 +31,8 @@ pub fn parse_company(input: &mut Stream<'_>) -> PResult<Company> {
 }
 
 pub fn parse_company_file(
-    input: &str,
-) -> Result<CompanyFile, ParseError<&str, winnow::error::ContextError>> {
+    input: Stream,
+) -> Result<CompanyFile, ParseError<Stream, winnow::error::ContextError>> {
     (parse_header, repeat(0.., parse_company))
         .map(|seq| CompanyFile {
             header: seq.0,
