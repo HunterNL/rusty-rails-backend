@@ -309,7 +309,7 @@ impl Record {
         timetable_end(self.timetable.as_slice())
     }
 
-    pub fn split_on_ride_id(&self, buffer: &mut Vec<Ride>) {
+    pub fn split_on_ride_id(&self) -> impl Iterator<Item = Ride> + '_ {
         let is_sole_transit_type = self.transit_types.len() == 1;
 
         if !is_sole_transit_type && self.ride_id.len() > 1 {
@@ -320,7 +320,7 @@ impl Record {
         self.ride_id
             .iter()
             .enumerate()
-            .map(|(index, ride_id)| {
+            .map(move |(index, ride_id)| {
                 let transit_type = if is_sole_transit_type {
                     self.transit_types.first().unwrap()
                 } else {
@@ -356,7 +356,6 @@ impl Record {
                     previous,
                 }
             })
-            .for_each(|ride| buffer.push(ride))
     }
 
     pub(crate) fn generate_legs(&self) -> Vec<Leg> {

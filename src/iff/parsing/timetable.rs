@@ -374,8 +374,7 @@ mod test_record {
         };
         let record = record_parser.parse(input).unwrap();
 
-        let mut rides = vec![];
-        record.split_on_ride_id(&mut rides);
+        let rides: Vec<Ride> = record.split_on_ride_id().collect();
 
         let code = |a: &'static str| locations.lookup_handle(a).unwrap();
 
