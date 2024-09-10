@@ -70,7 +70,7 @@ impl Iff {
     }
 
     fn parse_timetable(archive: impl Read + io::Seek) -> Result<TimeTable, String> {
-        let content = read_file_from_archive(archive, TIMETABLE_FILE_NAME)?;
+        let content = read_string_from_archive(archive, TIMETABLE_FILE_NAME)?;
 
         parse_timetable_file
             .parse(&content)
@@ -78,7 +78,7 @@ impl Iff {
     }
 
     fn parse_validity(archive: impl Read + io::Seek) -> Result<RideValidity, String> {
-        let content = read_file_from_archive(archive, FOOTNOTE_FILE_NAME)?;
+        let content = read_string_from_archive(archive, FOOTNOTE_FILE_NAME)?;
 
         parse_footnote_file
             .parse(&content)
@@ -86,20 +86,20 @@ impl Iff {
     }
 
     fn parse_companies(archive: impl Read + io::Seek) -> Result<CompanyFile, String> {
-        let content = read_file_from_archive(archive, COMPANY_FILE_NAME)?;
+        let content = read_string_from_archive(archive, COMPANY_FILE_NAME)?;
 
         parse_company_file(content.as_str()).map_err(|o| o.to_string())
     }
 
     pub fn parse_delivery(archive: impl Read + io::Seek) -> Result<Header, String> {
-        let content = read_file_from_archive(archive, HEADER_FILENAME)?;
+        let content = read_string_from_archive(archive, HEADER_FILENAME)?;
 
         parse_delivery_file(content.as_str()).map_err(|o| o.to_string())
     }
 
     pub fn parse_version_only(data: &[u8]) -> Result<u64, String> {
         let cursor = Cursor::new(data);
-        let delivery_file = read_file_from_archive(cursor, HEADER_FILENAME)?;
+        let delivery_file = read_string_from_archive(cursor, HEADER_FILENAME)?;
 
         parse_delivery_file(&delivery_file)
             .map_err(|e| e.to_string())
@@ -107,7 +107,10 @@ impl Iff {
     }
 }
 
-fn read_file_from_archive(archive: impl Read + io::Seek, filename: &str) -> Result<String, String> {
+fn read_string_from_archive(
+    archive: impl Read + io::Seek,
+    filename: &str,
+) -> Result<String, String> {
     let mut archive = zip::ZipArchive::new(archive).expect("valid new archive");
     let mut file = archive
         .by_name(filename)
@@ -122,6 +125,21 @@ fn read_file_from_archive(archive: impl Read + io::Seek, filename: &str) -> Resu
         std::str::from_utf8(buf.as_slice()).map_err(|_| "file contained invalid utf-8")?;
 
     Ok(str_content.to_owned())
+}
+
+fn read_bytes_from_archive(
+    archive: impl Read + io::Seek,
+    filename: &str,
+) -> Result<Vec<u8>, String> {
+    let mut archive = zip::ZipArchive::new(archive).expect("valid new archive");
+    let mut file = archive
+        .by_name(filename)
+        .map_err(|_| "Error getting file from archive")?;
+
+    let mut buf = vec![];
+    file.read_to_end(&mut buf).map_err(|e| e.to_string())?;
+
+    Ok(buf)
 }
 
 #[derive(PartialEq, Debug, Eq, Clone, Serialize)]

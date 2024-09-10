@@ -2,7 +2,7 @@ use winnow::{combinator::repeat, error::ParseError, PResult, Parser};
 
 use crate::iff::{Company, Header};
 
-use super::{dec_uint_leading, parse_header, parse_time, till_comma, IFF_NEWLINE};
+use super::{dec_uint_leading, parse_header, parse_time, till_comma, Stream, IFF_NEWLINE};
 
 pub struct CompanyFile {
     pub header: Header,
@@ -10,7 +10,7 @@ pub struct CompanyFile {
 }
 
 // 100,ns        ,NS                            ,0400
-pub fn parse_company(input: &mut &str) -> PResult<Company> {
+pub fn parse_company(input: &mut Stream<'_>) -> PResult<Company> {
     (
         till_comma.and_then(dec_uint_leading),
         ",",

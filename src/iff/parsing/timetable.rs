@@ -15,10 +15,10 @@ use crate::iff::{
 
 use super::{
     dec_uint_leading, empty_str_to_none, parse_header, parse_time, parse_transit_mode, seperator,
-    untill_newline, TransitMode, IFF_NEWLINE,
+    untill_newline, Stream, TransitMode, IFF_NEWLINE,
 };
 
-fn parse_single_day(input: &mut &str) -> PResult<bool> {
+fn parse_single_day(input: &mut Stream) -> PResult<bool> {
     one_of(['0', '1']).map(|char| char == '1').parse_next(input)
 }
 
@@ -27,7 +27,7 @@ struct RecordParser<'a> {
 }
 
 impl<'a> Parser<&str, Record, winnow::error::ContextError> for RecordParser<'a> {
-    fn parse_next(&mut self, input: &mut &str) -> PResult<Record> {
+    fn parse_next(&mut self, input: &mut Stream) -> PResult<Record> {
         preceded(
             '#',
             (
@@ -56,7 +56,7 @@ impl<'a> Parser<&str, Record, winnow::error::ContextError> for RecordParser<'a> 
     }
 }
 
-fn parse_footnote_record(input: &mut &str) -> PResult<DayValidityFootnote> {
+fn parse_footnote_record(input: &mut Stream) -> PResult<DayValidityFootnote> {
     (
         '#',
         dec_uint_leading,
@@ -71,7 +71,7 @@ fn parse_footnote_record(input: &mut &str) -> PResult<DayValidityFootnote> {
         .parse_next(input)
 }
 
-pub fn parse_footnote_file(input: &mut &str) -> PResult<RideValidity> {
+pub fn parse_footnote_file(input: &mut Stream) -> PResult<RideValidity> {
     (parse_header, repeat(0.., parse_footnote_record))
         .map(|seq: (Header, Vec<DayValidityFootnote>)| RideValidity {
             header: seq.0,
@@ -84,7 +84,7 @@ pub fn parse_footnote_file(input: &mut &str) -> PResult<RideValidity> {
         .parse_next(input)
 }
 
-pub fn parse_timetable_file(input: &mut &str) -> PResult<TimeTable> {
+pub fn parse_timetable_file<'s>(input: &mut Stream<'s>) -> PResult<TimeTable> {
     (parse_header, parse_records)
         .parse_next(input)
         .map(|seq| TimeTable {
@@ -94,7 +94,7 @@ pub fn parse_timetable_file(input: &mut &str) -> PResult<TimeTable> {
         })
 }
 
-fn parse_records(input: &mut &str) -> PResult<(Vec<Record>, LocationCache)> {
+fn parse_records(input: &mut Stream) -> PResult<(Vec<Record>, LocationCache)> {
     let estimate_record_count = input.matches('#').count();
     let mut accumulator = Vec::with_capacity(estimate_record_count);
 
@@ -116,7 +116,7 @@ fn parse_records(input: &mut &str) -> PResult<(Vec<Record>, LocationCache)> {
 // ?13 ,13 ,00003
 // ?1-2  ,1-2  ,00081
 // ?     ,     ,00187
-fn parse_platform_info(input: &mut &str) -> PResult<PlatformInfo> {
+fn parse_platform_info(input: &mut Stream) -> PResult<PlatformInfo> {
     trace(
         "platform_info",
         (
@@ -139,7 +139,7 @@ fn parse_platform_info(input: &mut &str) -> PResult<PlatformInfo> {
     })
 }
 
-fn parse_departure<'s>(input: &mut &'s str) -> PResult<TimetableEntryRaw<'s>> {
+fn parse_departure<'s>(input: &mut Stream<'s>) -> PResult<TimetableEntryRaw<'s>> {
     (
         parse_code,
         space0,
@@ -155,7 +155,7 @@ fn parse_departure<'s>(input: &mut &'s str) -> PResult<TimetableEntryRaw<'s>> {
         })
 }
 
-fn any_entry<'s>(input: &mut &'s str) -> PResult<TimetableEntryRaw<'s>> {
+fn any_entry<'s>(input: &mut Stream<'s>) -> PResult<TimetableEntryRaw<'s>> {
     dispatch! {winnow::token::any;
             '>' => parse_departure,
             ';' => parse_waypoint,
@@ -167,7 +167,7 @@ fn any_entry<'s>(input: &mut &'s str) -> PResult<TimetableEntryRaw<'s>> {
     .parse_next(input)
 }
 
-fn parse_waypoint<'a>(input: &mut &'a str) -> PResult<TimetableEntryRaw<'a>> {
+fn parse_waypoint<'s>(input: &mut Stream<'s>) -> PResult<TimetableEntryRaw<'s>> {
     (parse_code, opt(line_ending))
         .parse_next(input)
         .map(|seq| TimetableEntryRaw {
@@ -176,11 +176,11 @@ fn parse_waypoint<'a>(input: &mut &'a str) -> PResult<TimetableEntryRaw<'a>> {
         })
 }
 
-fn parse_code<'s>(input: &mut &'s str) -> PResult<&'s str> {
+fn parse_code<'s>(input: &mut Stream<'s>) -> PResult<&'s str> {
     terminated(alphanumeric1, multispace0).parse_next(input)
 }
 
-fn parse_stop_short<'s>(input: &mut &'s str) -> PResult<TimetableEntryRaw<'s>> {
+fn parse_stop_short<'s>(input: &mut Stream<'s>) -> PResult<TimetableEntryRaw<'s>> {
     (
         parse_code,
         ',',
@@ -195,7 +195,7 @@ fn parse_stop_short<'s>(input: &mut &'s str) -> PResult<TimetableEntryRaw<'s>> {
         })
 }
 
-fn parse_stop_long<'s>(input: &mut &'s str) -> PResult<TimetableEntryRaw<'s>> {
+fn parse_stop_long<'s>(input: &mut Stream<'s>) -> PResult<TimetableEntryRaw<'s>> {
     (
         parse_code,
         ',',
@@ -212,7 +212,7 @@ fn parse_stop_long<'s>(input: &mut &'s str) -> PResult<TimetableEntryRaw<'s>> {
         })
 }
 
-fn parse_arrival<'s>(input: &mut &'s str) -> PResult<TimetableEntryRaw<'s>> {
+fn parse_arrival<'s>(input: &mut Stream<'s>) -> PResult<TimetableEntryRaw<'s>> {
     (
         parse_code,
         ',',
@@ -245,7 +245,7 @@ mod test_platform_parse {
 }
 
 //%100,02871, ,001,004,
-fn parse_ride_id(input: &mut &str) -> PResult<RideId> {
+fn parse_ride_id(input: &mut Stream) -> PResult<RideId> {
     (
         '%',
         dec_uint_leading,
@@ -294,7 +294,7 @@ mod test_rideid_parse {
     }
 }
 
-fn parse_day_footnote(input: &mut &str) -> PResult<Footnote> {
+fn parse_day_footnote(input: &mut Stream) -> PResult<Footnote> {
     preceded(
         '-',
         (

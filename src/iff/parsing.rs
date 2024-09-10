@@ -21,6 +21,8 @@ mod company;
 pub use company::parse_company_file;
 pub use company::CompanyFile;
 
+pub type Stream<'s> = &'s str;
+
 pub fn parse_delivery_file(
     input: &str,
 ) -> Result<Header, ParseError<&str, winnow::error::ContextError>> {
@@ -44,15 +46,15 @@ impl Display for InvalidEncodingError {
     }
 }
 
-// fn recognize_digits<'s>(input: &mut &'s str) -> PResult<&'s str> {
+// fn recognize_digits<'s>(input: &mut Stream<'s>) -> PResult<&'s str> {
 //     digit1.recognize().parse_next(input)
 // }
 
-fn seperator(input: &mut &str) -> PResult<()> {
+fn seperator(input: &mut Stream) -> PResult<()> {
     (multispace0, ',').void().parse_next(input)
 }
 
-fn dec_uint_leading<Output: Uint + Clone>(input: &mut &str) -> PResult<Output> {
+fn dec_uint_leading<Output: Uint + Clone>(input: &mut Stream) -> PResult<Output> {
     alt((
         (take_while(0.., '0'), dec_uint).map(|a| a.1),
         (take_while(1.., '0')).value(Output::try_from_dec_uint("0").unwrap()),
@@ -62,7 +64,7 @@ fn dec_uint_leading<Output: Uint + Clone>(input: &mut &str) -> PResult<Output> {
     .parse_next(input)
 }
 
-fn parse_header(input: &mut &str) -> PResult<Header> {
+fn parse_header(input: &mut Stream) -> PResult<Header> {
     // separated(1.., "100", ',').parse_peek(input)
     trace(
         "header",
@@ -92,7 +94,7 @@ fn parse_header(input: &mut &str) -> PResult<Header> {
     })
 }
 
-fn parse_date(input: &mut &str) -> PResult<NaiveDate> {
+fn parse_date(input: &mut Stream) -> PResult<NaiveDate> {
     take(DATE_FORMAT_LEN)
         .try_map(|s| NaiveDate::parse_from_str(s, DATE_FORMAT))
         .parse_next(input)
@@ -111,7 +113,7 @@ mod test_parse_date {
     }
 }
 
-fn parse_time(input: &mut &str) -> PResult<DayOffset> {
+fn parse_time(input: &mut Stream) -> PResult<DayOffset> {
     trace("time", take(4u8).try_map(|s: &str| s.parse())).parse_next(input)
 }
 
@@ -345,16 +347,16 @@ pub struct TransitMode {
     last_stop: u32,
 }
 
-fn till_comma<'a>(input: &mut &'a str) -> PResult<&'a str> {
+fn till_comma<'s>(input: &mut Stream<'s>) -> PResult<&'s str> {
     take_till(0.., |c| c == ',').parse_next(input)
 }
 
-fn untill_newline<'a>(input: &mut &'a str) -> PResult<&'a str> {
+fn untill_newline<'s>(input: &mut Stream<'s>) -> PResult<&'s str> {
     take_until(0.., IFF_NEWLINE).parse_next(input)
 }
 
 //&IC ,001,005
-fn parse_transit_mode(input: &mut &str) -> PResult<TransitMode> {
+fn parse_transit_mode(input: &mut Stream) -> PResult<TransitMode> {
     (
         "&",
         till_comma,
