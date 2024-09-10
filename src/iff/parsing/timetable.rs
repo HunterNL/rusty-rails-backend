@@ -1,8 +1,9 @@
 use std::{collections::HashMap, str::FromStr};
 
 use winnow::{
-    ascii::{alphanumeric1, line_ending, multispace0, space0},
-    combinator::{dispatch, fail, opt, preceded, repeat, terminated, trace},
+    ascii::{alpha1, alphanumeric1, digit1, line_ending, multispace0, space0},
+    combinator::{alt, cut_err, dispatch, eof, fail, opt, preceded, repeat, terminated, trace},
+    error::{ContextError, StrContext},
     stream::AsChar,
     token::{one_of, take_till, take_while},
     PResult, Parser,
@@ -115,6 +116,15 @@ fn parse_records(input: &mut Stream) -> PResult<(Vec<Record>, LocationCache)> {
     Ok((accumulator, location_codes))
 }
 
+fn parse_platform_opt(input: &mut Stream) -> PResult<Option<Platform>> {
+    // trace(
+    // "platform",
+    take_till(1.., ',')
+        .map(|s| unsafe { std::str::from_utf8_unchecked(s) })
+        .map(|s| s.parse::<Platform>().ok())
+        .parse_next(input)
+}
+
 // ?13 ,13 ,00003
 // ?1-2  ,1-2  ,00081
 // ?     ,     ,00187
@@ -123,25 +133,19 @@ fn parse_platform_info(input: &mut Stream) -> PResult<PlatformInfo> {
         "platform_info",
         (
             '?',
-            opt(take_while(1.., ('-', AsChar::is_alphanum))),
-            multispace0,
+            parse_platform_opt,
             ',',
-            opt(take_while(1.., ('-', AsChar::is_alphanum))),
-            multispace0,
-            seperator,
+            parse_platform_opt,
+            ',',
             dec_uint_leading::<u64>,
             opt(line_ending), // (take_while(1.., |c| !AsChar::is_newline(c)),),
         ),
     )
     .parse_next(input)
     .map(|seq| PlatformInfo {
-        arrival_platform: seq
-            .1
-            .map(|s| Platform::from_str(std::str::from_utf8(s).unwrap()).unwrap()),
-        departure_platform: seq
-            .4
-            .map(|s| Platform::from_str(std::str::from_utf8(s).unwrap()).unwrap()),
-        footnote: seq.7,
+        arrival_platform: seq.1,
+        departure_platform: seq.3,
+        footnote: seq.5,
     })
 }
 

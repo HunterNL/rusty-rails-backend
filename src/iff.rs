@@ -242,6 +242,7 @@ impl FromStr for Platform {
     type Err = PlatformParseError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let s = s.trim();
         // Common case
         let num_parse_result = u8::from_str(s);
         if let Ok(number) = num_parse_result {
@@ -262,10 +263,16 @@ impl FromStr for Platform {
             });
         }
 
+        if s.is_empty() {
+            return Err(PlatformParseError {});
+        }
+
         // Special case
-        if s.chars().nth(1).unwrap() == '-' {
-            let left = u8::try_from(s.chars().next().unwrap()).unwrap();
-            let right = u8::try_from(s.chars().last().unwrap()).unwrap();
+        if s.chars().nth(1).expect("Expected to find a -") == '-' {
+            let left = u8::try_from(s.chars().next().expect("next to be a digit"))
+                .expect("left to be valid u8");
+            let right = u8::try_from(s.chars().last().expect("last to be a digit"))
+                .expect("right to be valid u8");
 
             return Ok(Platform {
                 number: left,
