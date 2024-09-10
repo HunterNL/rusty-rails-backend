@@ -309,7 +309,7 @@ impl Record {
         timetable_end(self.timetable.as_slice())
     }
 
-    pub fn split_on_ride_id(&self) -> Vec<Ride> {
+    pub fn split_on_ride_id(&self, buffer: &mut Vec<Ride>) {
         let is_sole_transit_type = self.transit_types.len() == 1;
 
         if !is_sole_transit_type && self.ride_id.len() > 1 {
@@ -356,7 +356,7 @@ impl Record {
                     previous,
                 }
             })
-            .collect()
+            .for_each(|ride| buffer.push(ride))
     }
 
     pub(crate) fn generate_legs(&self) -> Vec<Leg> {

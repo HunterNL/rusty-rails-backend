@@ -253,12 +253,14 @@ impl DataRepo {
         );
         println!("Day count: {}", duration.num_days());
 
-        let rides: Vec<iff::Ride> = iff
-            .timetable()
-            .rides
-            .iter()
-            .flat_map(|record| record.split_on_ride_id())
-            .collect();
+        let rides: Vec<iff::Ride> =
+            iff.timetable()
+                .rides
+                .iter()
+                .fold(Vec::new(), |mut buffer, record| {
+                    record.split_on_ride_id(&mut buffer);
+                    buffer
+                });
 
         let version = iff.header().version;
 
@@ -336,8 +338,10 @@ impl DataRepo {
             .timetable()
             .rides
             .iter()
-            .flat_map(|record| record.split_on_ride_id())
-            .collect();
+            .fold(Vec::new(), |mut buffer, record| {
+                record.split_on_ride_id(&mut buffer);
+                buffer
+            })
     }
 
     pub fn rides(&self) -> &[Ride] {

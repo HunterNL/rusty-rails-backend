@@ -374,7 +374,8 @@ mod test_record {
         };
         let record = record_parser.parse(input).unwrap();
 
-        let rides = record.split_on_ride_id();
+        let mut rides = vec![];
+        record.split_on_ride_id(&mut rides);
 
         let code = |a: &'static str| locations.lookup_handle(a).unwrap();
 
