@@ -7,7 +7,10 @@
 			"problemMatcher": [
 				"$rustc"
 			],
-			"group": "test",
+			"group": {
+				"kind": "test",
+				"isDefault": true
+			},
 			"label": "rust: cargo test"
 		},
 		{
@@ -53,7 +56,7 @@
 				"-W",
 				"clippy::pedantic",
 				"-W",
-				"clippy::unwrap_used",
+				"clippy::unwrap_used"
 			],
 			"problemMatcher": [
 				"$rustc"
