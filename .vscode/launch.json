@@ -53,6 +53,26 @@
         {
             "type": "lldb",
             "request": "launch",
+            "name": "Debug bench",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--bin=rustyrails",
+                    "--package=rustyrails"
+                ],
+                "filter": {
+                    "name": "rustyrails",
+                    "kind": "bin"
+                }
+            },
+            "args": [
+                "bench"
+            ],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
             "name": "Debug unit tests in executable 'rustyrails'",
             "cargo": {
                 "args": [
