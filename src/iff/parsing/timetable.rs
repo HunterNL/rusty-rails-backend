@@ -1,11 +1,9 @@
-use std::{collections::HashMap, str::FromStr};
+use std::collections::HashMap;
 
 use winnow::{
-    ascii::{alpha1, alphanumeric1, digit1, line_ending, multispace0, space0},
-    combinator::{alt, cut_err, dispatch, eof, fail, opt, preceded, repeat, terminated, trace},
-    error::{ContextError, StrContext},
-    stream::AsChar,
-    token::{one_of, take_till, take_while},
+    ascii::{alphanumeric1, line_ending, multispace0, space0},
+    combinator::{dispatch, fail, opt, preceded, repeat, terminated, trace},
+    token::{one_of, take_till},
     PResult, Parser,
 };
 
@@ -15,7 +13,7 @@ use crate::iff::{
 };
 
 use super::{
-    dec_uint_leading, empty_str_to_none, parse_header, parse_time, parse_transit_mode, seperator,
+    dec_uint_leading, empty_str_to_none, parse_header, parse_time, parse_transit_mode,
     untill_newline, Stream, TransitMode, IFF_NEWLINE,
 };
 
@@ -87,7 +85,7 @@ pub fn parse_footnote_file(input: &mut Stream) -> PResult<RideValidity> {
         .parse_next(input)
 }
 
-pub fn parse_timetable_file<'s>(input: &mut Stream<'s>) -> PResult<TimeTable> {
+pub fn parse_timetable_file(input: &mut Stream<'_>) -> PResult<TimeTable> {
     (parse_header, parse_records)
         .parse_next(input)
         .map(|seq| TimeTable {
@@ -240,13 +238,14 @@ fn parse_arrival<'s>(input: &mut Stream<'s>) -> PResult<TimetableEntryRaw<'s>> {
 #[cfg(test)]
 mod test_platform_parse {
     use super::*;
+    use pretty_assertions::assert_eq;
 
     #[test]
     fn test_platform_parse() {
         let input = "?11 ,15 ,00003".into();
         let expected = PlatformInfo {
-            arrival_platform: Some(Platform::from_str("11").unwrap()),
-            departure_platform: Some(Platform::from_str("15").unwrap()),
+            arrival_platform: Some(Platform::plain(11)),
+            departure_platform: Some(Platform::plain(15)),
             footnote: 3,
         };
 

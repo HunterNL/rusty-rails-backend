@@ -47,7 +47,7 @@ struct MissingLinkReportDisplay<'a, 'b> {
 impl MissingLinkReport {
     fn display<'a, 'b>(&'a self, cache: &'b LocationCache) -> MissingLinkReportDisplay<'a, 'b> {
         MissingLinkReportDisplay {
-            inner: &self,
+            inner: self,
             cache,
         }
     }
@@ -95,7 +95,7 @@ impl LinkMap for HashMap<LinkCode, Link> {
     }
 
     fn contains_undirected(&self, code: &LinkCode) -> bool {
-        self.contains_key(code) || self.contains_key(&LinkCode(code.1.clone(), code.0.clone()))
+        self.contains_key(code) || self.contains_key(&LinkCode(code.1, code.0))
     }
 
     fn contains_directed(&self, code: &LinkCode) -> bool {
@@ -165,14 +165,14 @@ fn report_missing_leg(
     match &leg.kind {
         LegKind::Stationary(location, _) => {
             let code = location_cache.get_str(location).unwrap();
-            (!station_codes.contains(code)).then(|| MissingLinkReport::NoStation(*location))
+            (!station_codes.contains(code)).then_some(MissingLinkReport::NoStation(*location))
         }
         LegKind::Moving {
             from,
             to,
             waypoints: _,
-        } => (!links.contains_undirected(&LinkCode(from.clone(), to.clone())))
-            .then(|| MissingLinkReport::NoRoute(from.clone(), to.clone())),
+        } => (!links.contains_undirected(&LinkCode(*from, *to)))
+            .then_some(MissingLinkReport::NoRoute(*from, *to)),
     }
 }
 
@@ -324,7 +324,7 @@ impl DataRepo {
 
         self.iff
             .rides_mut()
-            .retain(|ride| has_complete_data(ride, &station_codes, &location_cache, &link_map));
+            .retain(|ride| has_complete_data(ride, &station_codes, location_cache, &link_map));
 
         println!(
             "Post data filter ride #: {}",

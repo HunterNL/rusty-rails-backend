@@ -6,7 +6,7 @@ use crate::iff::{LocationCache, LocationCodeHandle};
 
 use super::LinkCode;
 
-pub fn extract_links(file: &File, mut locations: &mut LocationCache) -> Vec<Link> {
+pub fn extract_links(file: &File, locations: &mut LocationCache) -> Vec<Link> {
     let reader = BufReader::new(file);
 
     // Parse into serde_json::Value first to easily navigate down the json data

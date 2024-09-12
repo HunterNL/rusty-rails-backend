@@ -77,7 +77,7 @@ impl Iff {
         }
 
         parse_timetable_file
-            .parse(&content)
+            .parse(content)
             .map_err(|o| o.to_string())
     }
 
@@ -89,7 +89,7 @@ impl Iff {
         }
 
         parse_footnote_file
-            .parse(&content)
+            .parse(content)
             .map_err(|o| o.to_string())
     }
 
@@ -100,7 +100,7 @@ impl Iff {
             return Err("Expected timetable file to be valid ASCII".to_owned());
         }
 
-        parse_company_file(&content).map_err(|o| o.to_string())
+        parse_company_file(content).map_err(|o| o.to_string())
     }
 
     pub fn parse_delivery(archive: impl Read + io::Seek) -> Result<Header, String> {
@@ -110,7 +110,7 @@ impl Iff {
             return Err("Expected timetable file to be valid ASCII".to_owned());
         }
 
-        parse_delivery_file(&content).map_err(|o| o.to_string())
+        parse_delivery_file(content).map_err(|o| o.to_string())
     }
 
     pub fn parse_version_only(data: &[u8]) -> Result<u64, String> {
@@ -121,7 +121,7 @@ impl Iff {
             return Err("Expected timetable file to be valid ASCII".to_owned());
         }
 
-        parse_delivery_file(&content)
+        parse_delivery_file(content)
             .map_err(|e| e.to_string())
             .map(|h| h.version)
     }

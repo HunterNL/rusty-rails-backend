@@ -37,8 +37,8 @@ pub struct ApiObject<'a, T: ?Sized> {
 }
 
 pub trait IntoAPIObject {
-    fn as_api_object<'a>(&'a self) -> ApiObject<'_, Self> {
-        ApiObject { inner: &self }
+    fn as_api_object(&self) -> ApiObject<'_, Self> {
+        ApiObject { inner: self }
     }
 }
 
