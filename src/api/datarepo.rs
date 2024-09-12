@@ -46,10 +46,7 @@ struct MissingLinkReportDisplay<'a, 'b> {
 
 impl MissingLinkReport {
     fn display<'a, 'b>(&'a self, cache: &'b LocationCache) -> MissingLinkReportDisplay<'a, 'b> {
-        MissingLinkReportDisplay {
-            inner: self,
-            cache,
-        }
+        MissingLinkReportDisplay { inner: self, cache }
     }
 }
 
@@ -222,10 +219,9 @@ pub fn select_station_by_name<'a>(stations: &'a [Station], needle: &str) -> Opti
 
 impl DataRepo {
     pub fn new(cache_dir: &std::path::Path) -> Self {
-        let mut locations = LocationCache::new();
         let iff_file = File::open(cache_dir.join(TIMETABLE_PATH)).expect("To find timetable file");
 
-        let iff = Iff::new_from_archive(&iff_file)
+        let mut iff = Iff::new_from_archive(&iff_file)
             .map_err(|e| println!("{e}"))
             .expect("valid parse");
 
@@ -233,7 +229,7 @@ impl DataRepo {
         let stations_file =
             File::open(cache_dir.join(STATION_FILEPATH)).expect("To find stations file");
 
-        let links: Vec<Link> = extract_links(&route_file, &mut locations);
+        let links: Vec<Link> = extract_links(&route_file, &mut iff.locations);
 
         let stations = extract_stations(&stations_file);
 
@@ -280,7 +276,7 @@ impl DataRepo {
             .collect();
 
         let station_codes: HashSet<String> = self.stations.iter().map(|s| s.code.clone()).collect();
-        let location_cache = &self.iff.timetable().locations;
+        let location_cache = &self.iff.locations;
 
         let reports: Vec<_> = self
             .iff
@@ -320,7 +316,7 @@ impl DataRepo {
             .collect();
 
         let station_codes: HashSet<String> = self.stations.iter().map(|s| s.code.clone()).collect();
-        let location_cache = &self.iff.timetable().locations.clone();
+        let location_cache = &self.iff.locations.clone(); // Clone is safe since it's only being
 
         self.iff
             .rides_mut()
@@ -428,6 +424,6 @@ impl DataRepo {
     }
 
     pub fn location_cache(&self) -> &LocationCache {
-        &self.iff.timetable().locations
+        &self.iff.locations
     }
 }

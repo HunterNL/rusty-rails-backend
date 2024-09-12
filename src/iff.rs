@@ -28,16 +28,18 @@ pub struct Iff {
     validity: RideValidity,
     companies: Vec<Company>,
     header: Header,
+    pub locations: LocationCache,
 }
 
 impl Iff {
     pub fn new_from_archive(archive: &File) -> Result<Self, String> {
-        let timetable = Self::parse_timetable(archive)?;
+        let (timetable, locations) = Self::parse_timetable(archive)?;
         let validity = Self::parse_validity(archive)?;
         let companies = Self::parse_companies(archive).map(|c| c.companies)?;
         let delivery = Self::parse_delivery(archive)?;
 
         Ok(Self {
+            locations,
             timetable,
             validity,
             companies,
@@ -69,7 +71,9 @@ impl Iff {
         &self.header
     }
 
-    fn parse_timetable(archive: impl Read + io::Seek) -> Result<TimeTable, String> {
+    fn parse_timetable(
+        archive: impl Read + io::Seek,
+    ) -> Result<(TimeTable, LocationCache), String> {
         let content = read_bytes_from_archive(archive, TIMETABLE_FILE_NAME)?;
         let content = BStr::new(&content);
         if !content.is_ascii() {
@@ -420,7 +424,7 @@ struct DayValidityFootnote {
 pub struct TimeTable {
     pub header: Header,
     pub rides: Vec<Record>,
-    pub locations: LocationCache,
+    // pub locations: LocationCache,
 }
 
 pub struct RideValidity {

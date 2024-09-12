@@ -85,14 +85,16 @@ pub fn parse_footnote_file(input: &mut Stream) -> PResult<RideValidity> {
         .parse_next(input)
 }
 
-pub fn parse_timetable_file(input: &mut Stream<'_>) -> PResult<TimeTable> {
-    (parse_header, parse_records)
-        .parse_next(input)
-        .map(|seq| TimeTable {
-            header: seq.0,
-            rides: seq.1 .0,
-            locations: seq.1 .1,
-        })
+pub fn parse_timetable_file(input: &mut Stream<'_>) -> PResult<(TimeTable, LocationCache)> {
+    (parse_header, parse_records).parse_next(input).map(|seq| {
+        (
+            TimeTable {
+                header: seq.0,
+                rides: seq.1 .0,
+            },
+            seq.1 .1,
+        )
+    })
 }
 
 fn parse_records(input: &mut Stream) -> PResult<(Vec<Record>, LocationCache)> {
