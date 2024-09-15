@@ -1,4 +1,8 @@
-use poem::{handler, http::header, Response};
+use poem::{
+    handler,
+    http::{header, StatusCode},
+    IntoResponse, Response,
+};
 
 use std::sync::Arc;
 
@@ -17,9 +21,15 @@ pub fn active_rides_endpoint(data: Data<&Arc<DataRepo>>, _req: String) -> Respon
         .map(|r| r.as_api_object())
         .collect();
 
-    let data = serde_json::to_vec(&rides).unwrap();
+    let data = serde_json::to_vec(&rides);
 
-    Response::builder()
-        .header(header::CONTENT_TYPE, "application/json; charset=utf-8")
-        .body(data)
+    match data {
+        Ok(json) => Response::builder()
+            .header(header::CONTENT_TYPE, "application/json; charset=utf-8")
+            .body(json),
+        Err(e) => {
+            eprintln!("{}", e);
+            StatusCode::INTERNAL_SERVER_ERROR.into_response()
+        }
+    }
 }

@@ -6,6 +6,7 @@ use active_rides_timespan::active_rides_in_timespan_endpoint;
 use anyhow::{anyhow, Ok};
 
 use find_path_endpoint::route_finding_endpoint;
+use location_map::location_map_endpoint;
 use ns_api::NsApi;
 use poem::{
     endpoint::StaticFileEndpoint,
@@ -22,6 +23,7 @@ mod active_rides_timespan;
 mod all_rides;
 mod errorresponse;
 mod find_path_endpoint;
+mod location_map;
 
 use crate::{
     api::{active_rides::active_rides_endpoint, all_rides::all_rides_endpoint},
@@ -65,7 +67,7 @@ impl<'a, 'b> Serialize for ApiObject<'a, Leg> {
         leg.serialize_field("timeStart", &self.inner.start)?;
         leg.serialize_field("timeEnd", &self.inner.end)?;
         leg.serialize_field("moving", &self.inner.kind.is_moving())?;
-        leg.serialize_field("waypoints", self.inner.kind.waypoints().unwrap())?;
+        leg.serialize_field("waypoints", self.inner.kind.waypoints().unwrap_or(&vec![]))?;
         leg.serialize_field("from", &self.inner.kind.from())?;
         leg.serialize_field("to", &self.inner.kind.to())?;
         leg.serialize_field("stationCode", &self.inner.kind.station_code())?;
@@ -302,6 +304,7 @@ async fn start_server(
     let app = Route::new()
         .at("/data/stations.json", get(stations_endpoint))
         .at("/data/links.json", get(links_endpoint))
+        .at("/data/location_map.json", get(location_map_endpoint))
         .at("/api/activerides", get(active_rides_endpoint))
         .at(
             "/api/activerides_timespan",

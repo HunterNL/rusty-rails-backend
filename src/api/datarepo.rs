@@ -30,7 +30,7 @@ pub struct DataRepo {
 }
 
 /// Key to identify links, looking up links with the waypoint identifiers the wrong way around should return a corrected Link
-#[derive(Eq, Hash, PartialEq)]
+#[derive(Eq, Hash, PartialEq, Debug)]
 pub struct LinkCode(LocationCodeHandle, LocationCodeHandle);
 
 #[derive(Hash, PartialEq, Eq)]

@@ -1,5 +1,6 @@
 use std::{
     collections::HashMap,
+    fmt::{Display, Write},
     fs::File,
     io::{self, Cursor, Read},
     str::FromStr,
@@ -222,11 +223,29 @@ impl<'a> TimetableEntryRaw<'a> {
     }
 }
 
-#[derive(Debug, PartialEq, Clone, Eq, Serialize)]
+#[derive(Debug, PartialEq, Clone, Eq)]
 pub struct Platform {
     suffix: Option<char>,
     number: u8,
     range_to: Option<u8>,
+}
+
+impl Serialize for Platform {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        let mut output = String::new();
+        output.push_str(&self.number.to_string());
+        if let Some(suffix) = self.suffix {
+            output.push(suffix);
+        } else if let Some(range) = self.range_to {
+            output.push('-');
+            output.push_str(&range.to_string())
+        }
+
+        serializer.serialize_str(&output)
+    }
 }
 
 impl Platform {
@@ -297,8 +316,10 @@ pub struct LocationCodeHandle {
 }
 
 #[derive(Clone, Debug, Serialize)]
+#[serde(transparent)]
 pub struct LocationCache {
     storage: Vec<Box<str>>,
+    #[serde(skip)]
     lookup: HashMap<Box<str>, u16>,
 }
 
@@ -341,6 +362,10 @@ impl LocationCache {
 
     pub fn get_str(&self, h: &LocationCodeHandle) -> Option<&str> {
         self.storage.get(h.inner as usize).map(|bx| bx.as_ref())
+    }
+
+    pub fn codes(&self) -> &[Box<str>] {
+        &self.storage
     }
 }
 
@@ -486,6 +511,21 @@ pub struct Ride {
     pub next: Option<String>,
 }
 
+pub struct RidePrettyPrint<'a>(&'a Ride, &'a LocationCache);
+
+impl<'a> Display for RidePrettyPrint<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_char('#')?;
+        f.write_str(&self.0.id)?;
+        for stop in &self.0.timetable {
+            let code = self.1.get_str(&stop.code).unwrap();
+            f.write_str(code)?;
+            f.write_char('\n')?;
+        }
+        f.write_char('\n')
+    }
+}
+
 impl Ride {
     pub fn stop_at_code(&self, code: &LocationCodeHandle) -> Option<&TimetableEntry> {
         self.timetable
@@ -498,8 +538,13 @@ impl Ride {
             .iter()
             .any(|entry| entry.code == *code && entry.stop_kind.is_boardable())
     }
+
+    pub fn pretty_print<'a>(&'a self, codes: &'a LocationCache) -> RidePrettyPrint<'a> {
+        RidePrettyPrint(self, codes)
+    }
 }
 
+#[derive(Debug)]
 pub enum LegKind {
     Stationary(LocationCodeHandle, StopKind),
     Moving {
@@ -584,6 +629,7 @@ impl LegKind {
     }
 }
 
+#[derive(Debug)]
 pub struct Leg {
     pub start: DayOffset,
     pub end: DayOffset,
