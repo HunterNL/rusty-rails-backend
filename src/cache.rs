@@ -130,7 +130,9 @@ impl Cache {
         let source_result = source.get_async().await;
         let remote_content = source_result.map_err(|e: SourceErr| Error::Source(e.into()))?;
 
-        if !file_path.exists() {
+        if file_path.try_exists().is_err() || file_path.try_exists().is_ok_and(|f| !f) {
+            println!("File path {} seems empty, creating", file_path.display());
+            fs::create_dir_all(file_path.parent().expect("valid parent dir"))?;
             fs::write(file_path, remote_content)?;
 
             Ok(Action::Sourced)
