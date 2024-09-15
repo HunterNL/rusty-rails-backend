@@ -29,7 +29,8 @@ fn is_update_required(old: &[u8], new: &[u8]) -> Result<bool, Box<dyn std::error
 
 #[tokio::main]
 pub async fn fetch(storage_dir: &Path, ns_key: Option<&str>) -> Result<(), anyhow::Error> {
-    if !storage_dir.exists() {
+    println!("Fetching into {}", storage_dir.canonicalize()?.display());
+    if storage_dir.try_exists().is_err() || storage_dir.try_exists().is_ok_and(|f| !f) {
         println!(
             "Cache dir at {} is empty, creating...",
             storage_dir.canonicalize()?.display()
