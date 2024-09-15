@@ -1,4 +1,4 @@
-use anyhow::anyhow;
+use anyhow::{anyhow, Context};
 use std::path::Path;
 use tokio::fs;
 
@@ -29,11 +29,20 @@ fn is_update_required(old: &[u8], new: &[u8]) -> Result<bool, Box<dyn std::error
 
 #[tokio::main]
 pub async fn fetch(storage_dir: &Path, ns_key: Option<&str>) -> Result<(), anyhow::Error> {
-    println!("Fetching into {}", storage_dir.canonicalize()?.display());
+    println!(
+        "Fetching into {}",
+        storage_dir
+            .canonicalize()
+            .context("storage_dir.canonicalize")?
+            .display()
+    );
     if storage_dir.try_exists().is_err() || storage_dir.try_exists().is_ok_and(|f| !f) {
         println!(
             "Cache dir at {} is empty, creating...",
-            storage_dir.canonicalize()?.display()
+            storage_dir
+                .canonicalize()
+                .context("2nd storage_dir.canonicalize")?
+                .display()
         );
 
         fs::create_dir_all(storage_dir).await?;
