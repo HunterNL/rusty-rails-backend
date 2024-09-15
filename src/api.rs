@@ -145,7 +145,9 @@ pub fn serve(config: &AppConfig, autofetch: bool) -> Result<(), anyhow::Error> {
     if autofetch {
         println!("Autofetching...");
         fetch::fetch(&config.cache_dir, config.ns_api_key.as_deref())?
+        println!("Done autofetching")
     }
+    println!("Starting serve...");
 
     let http_dir = config.cache_dir.join(HTTP_CACHE_SUBDIR);
     let mut data = datarepo::DataRepo::new(&config.cache_dir);
