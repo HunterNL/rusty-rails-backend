@@ -144,7 +144,7 @@ const HTTP_CACHE_LINK_PATH: &str = "links.json";
 pub fn serve(config: &AppConfig, autofetch: bool) -> Result<(), anyhow::Error> {
     if autofetch {
         println!("Autofetching...");
-        fetch::fetch(&config.cache_dir, config.ns_api_key.as_deref())?
+        fetch::fetch(&config.cache_dir, config.ns_api_key.as_deref())?;
         println!("Done autofetching")
     }
     println!("Starting serve...");
