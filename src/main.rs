@@ -38,6 +38,7 @@ fn wait_user_input() {
 }
 
 fn main() -> Result<(), anyhow::Error> {
+    println!("Main");
     let config: Figment = Figment::new()
         .merge(Toml::file("./config/project.toml"))
         .merge(Toml::file("./config/project.secret.toml"))
@@ -46,6 +47,8 @@ fn main() -> Result<(), anyhow::Error> {
 
     let config: AppConfig = config.extract().context("Parsing config files")?;
     let cli_options = cli::get_cli_args();
+
+    println!("Config was read");
 
     // wait_user_input();
 
