@@ -509,6 +509,7 @@ pub struct Ride {
     pub day_validity: u64,
     pub previous: Option<String>,
     pub next: Option<String>,
+    pub operator: u32,
 }
 
 pub struct RidePrettyPrint<'a>(&'a Ride, &'a LocationCache);

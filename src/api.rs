@@ -5,6 +5,7 @@ use std::{collections::HashSet, fs, path::Path, sync::Arc};
 use active_rides_timespan::active_rides_in_timespan_endpoint;
 use anyhow::{anyhow, Ok};
 
+use company_map::company_endpoint;
 use find_path_endpoint::route_finding_endpoint;
 use location_map::location_map_endpoint;
 use ns_api::NsApi;
@@ -21,6 +22,7 @@ use tokio::sync::mpsc;
 mod active_rides;
 mod active_rides_timespan;
 mod all_rides;
+mod company_map;
 mod errorresponse;
 mod find_path_endpoint;
 mod location_map;
@@ -119,6 +121,7 @@ impl<'a> Serialize for ApiObject<'a, Ride> {
     {
         let mut ride = serializer.serialize_struct("ride", 7)?;
         ride.serialize_field("id", &self.inner.id)?;
+        ride.serialize_field("operator", &self.inner.operator)?;
         ride.serialize_field("startTime", &self.inner.start_time())?;
         ride.serialize_field("endTime", &self.inner.end_time())?;
         ride.serialize_field("distance", &0)?;
@@ -307,6 +310,7 @@ async fn start_server(
         .at("/data/stations.json", get(stations_endpoint))
         .at("/data/links.json", get(links_endpoint))
         .at("/data/location_map.json", get(location_map_endpoint))
+        .at("/data/company_map.json", get(company_endpoint))
         .at("/api/activerides", get(active_rides_endpoint))
         .at(
             "/api/activerides_timespan",

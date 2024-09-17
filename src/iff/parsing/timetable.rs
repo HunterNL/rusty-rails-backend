@@ -388,6 +388,7 @@ mod test_record {
             ride0,
             &Ride {
                 id: "2871".to_owned(),
+                operator: 100,
                 transit_mode: "IC".to_owned(),
                 timetable: vec![
                     entry!(
@@ -441,6 +442,7 @@ mod test_record {
         assert_eq!(
             ride1,
             &Ride {
+                operator: 100,
                 id: "1771".to_owned(),
                 transit_mode: "IC".to_owned(),
                 timetable: vec![

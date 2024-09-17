@@ -350,6 +350,7 @@ impl Record {
                 Ride {
                     transit_mode: transit_type.mode.clone(),
                     timetable,
+                    operator: ride_id.company_id,
                     id: ride_id.ride_id.to_string(),
                     day_validity: self.day_validity_footnote,
                     next,
