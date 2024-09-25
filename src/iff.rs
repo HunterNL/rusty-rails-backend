@@ -230,6 +230,18 @@ pub struct Platform {
     range_to: Option<u8>,
 }
 
+impl Display for Platform {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self.range_to {
+            Some(to) => f.write_fmt(format_args!("{}-{}", self.number, to)),
+            None => match self.suffix {
+                Some(suffix) => f.write_fmt(format_args!("{}{}", self.number, suffix)),
+                None => f.write_fmt(format_args!("{}", self.number)),
+            },
+        }
+    }
+}
+
 impl Serialize for Platform {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
@@ -292,10 +304,16 @@ impl FromStr for Platform {
 
         // Special case
         if s.chars().nth(1).expect("Expected to find a -") == '-' {
-            let left = u8::try_from(s.chars().next().expect("next to be a digit"))
-                .expect("left to be valid u8");
-            let right = u8::try_from(s.chars().last().expect("last to be a digit"))
-                .expect("right to be valid u8");
+            let split = s.split_once('-').expect("clean platform split");
+
+            let left: u8 = split
+                .0
+                .parse()
+                .expect("expected first number parse to succeed");
+            let right: u8 = split
+                .1
+                .parse()
+                .expect("expected first number parse to succeed");
 
             return Ok(Platform {
                 number: left,
@@ -371,9 +389,19 @@ impl LocationCache {
 
 #[derive(Debug, PartialEq, Eq, Clone, Serialize)]
 pub struct PlatformInfo {
-    arrival_platform: Option<Platform>,
-    departure_platform: Option<Platform>,
+    pub arrival_platform: Option<Platform>,
+    pub departure_platform: Option<Platform>,
     footnote: u64,
+}
+
+impl PlatformInfo {
+    pub fn plain(number: u8, footnote: u64) -> Self {
+        PlatformInfo {
+            arrival_platform: Some(Platform::plain(number)),
+            departure_platform: Some(Platform::plain(number)),
+            footnote,
+        }
+    }
 }
 
 #[derive(PartialEq, Debug, Eq, Clone, Serialize)]

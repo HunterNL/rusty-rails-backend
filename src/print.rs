@@ -61,12 +61,16 @@ fn print_departures(data: &DataRepo, name_or_code: &str) -> Result<(), String> {
 
     for (ride, stop) in ride_and_stop {
         println!(
-            "{:5} {} {}",
+            "{:5} {:5} {:3} {}",
             ride.id,
             stop.stop_kind
                 .departure_time()
                 .unwrap()
                 .display_for_timetable(),
+            stop.stop_kind
+                .platform_info()
+                .map(|p| p.departure_platform.as_ref().unwrap().to_string())
+                .unwrap_or_default(),
             data.station_by_code(
                 data.location_cache()
                     .get_str(&ride.timetable.last().unwrap().code)

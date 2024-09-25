@@ -337,7 +337,7 @@ mod test_record {
         dayoffset::DayOffset,
         iff::{
             parsing::{dec_uint_leading, timetable::RecordParser, TransitMode},
-            LocationCache, Platform, PlatformInfo, Ride, RideId, StopKind, TimetableEntry,
+            LocationCache, Platform, PlatformInfo, Record, Ride, RideId, StopKind, TimetableEntry,
         },
     };
 
@@ -552,7 +552,141 @@ mod test_record {
             locations: &mut locations,
         };
 
-        record_parser.parse(input).map_err(|e| e.to_string())?;
+        let output = record_parser.parse(input).map_err(|e| e.to_string())?;
+
+        let code = |a: &'static str| {
+            locations
+                .lookup_handle(a)
+                .unwrap_or_else(|| panic!("To find {a}"))
+        };
+
+        let expected = Record {
+            id: 1283,
+            day_validity_footnote: 81,
+            ride_id: vec![
+                RideId {
+                    company_id: 200,
+                    first_stop: 1,
+                    last_stop: 5,
+                    ride_id: 9316,
+                    line_id: None,
+                    ride_name: None,
+                },
+                RideId {
+                    company_id: 200,
+                    first_stop: 5,
+                    last_stop: 7,
+                    ride_id: 9916,
+                    line_id: None,
+                    ride_name: None,
+                },
+            ],
+            timetable: vec![
+                entry!(
+                    code("asd"),
+                    StopKind::Departure(
+                        Some(PlatformInfo {
+                            arrival_platform: Some(Platform {
+                                number: 14,
+                                suffix: None,
+                                range_to: None
+                            }),
+                            departure_platform: Some(Platform {
+                                suffix: None,
+                                number: 14,
+                                range_to: None
+                            }),
+                            footnote: 81
+                        }),
+                        DayOffset::from_hour_minute(7, 15)
+                    )
+                ),
+                entry!(code("ass"), StopKind::Waypoint),
+                entry!(code("asdl"), StopKind::Waypoint),
+                entry!(
+                    code("shl"),
+                    StopKind::StopLong(
+                        Some(PlatformInfo {
+                            arrival_platform: Some(Platform {
+                                suffix: None,
+                                number: 1,
+                                range_to: Some(2)
+                            }),
+                            departure_platform: Some(Platform {
+                                suffix: None,
+                                number: 1,
+                                range_to: Some(2)
+                            }),
+                            footnote: 81
+                        }),
+                        DayOffset::from_hour_minute(7, 30),
+                        DayOffset::from_hour_minute(7, 32)
+                    )
+                ),
+                entry!(code("hfd"), StopKind::Waypoint),
+                entry!(
+                    code("rtd"),
+                    StopKind::StopLong(
+                        Some(PlatformInfo::plain(2, 81)),
+                        DayOffset::from_hour_minute(7, 54),
+                        DayOffset::from_hour_minute(7, 58)
+                    )
+                ),
+                entry!(code("rtb"), StopKind::Waypoint),
+                entry!(code("rtz"), StopKind::Waypoint),
+                entry!(code("rtst"), StopKind::Waypoint),
+                entry!(code("rlb"), StopKind::Waypoint),
+                entry!(code("ndkp"), StopKind::Waypoint),
+                entry!(code("atwlb"), StopKind::Waypoint),
+                entry!(
+                    code("atw"),
+                    StopKind::StopLong(
+                        None,
+                        DayOffset::from_hour_minute(8, 30),
+                        DayOffset::from_hour_minute(8, 33)
+                    )
+                ),
+                entry!(code("berch"), StopKind::Waypoint),
+                entry!(code("gmd"), StopKind::Waypoint),
+                entry!(code("gmog"), StopKind::Waypoint),
+                entry!(code("mho"), StopKind::Waypoint),
+                entry!(code("fki"), StopKind::Waypoint),
+                entry!(code("fdp"), StopKind::Waypoint),
+                entry!(code("fwa"), StopKind::Waypoint),
+                entry!(code("lnk"), StopKind::Waypoint),
+                entry!(code("mech"), StopKind::Waypoint),
+                entry!(code("fbnl"), StopKind::Waypoint),
+                entry!(code("brusn"), StopKind::Waypoint),
+                entry!(code("brusc"), StopKind::Waypoint),
+                entry!(
+                    code("brusz"),
+                    StopKind::StopLong(
+                        None,
+                        DayOffset::from_hour_minute(9, 8),
+                        DayOffset::from_hour_minute(9, 20)
+                    )
+                ),
+                entry!(
+                    code("acdg"),
+                    StopKind::StopLong(
+                        Some(PlatformInfo::plain(1, 81)),
+                        DayOffset::from_hour_minute(10, 33),
+                        DayOffset::from_hour_minute(10, 38)
+                    )
+                ),
+                entry!(
+                    code("marne"),
+                    StopKind::Arrival(None, DayOffset::from_hour_minute(10, 48))
+                ),
+            ],
+            transit_types: vec![TransitMode {
+                mode: "EST".to_owned(),
+                first_stop: 1,
+                last_stop: 7,
+            }],
+        };
+
+        assert_eq!(output, expected);
 
         Ok(())
     }
