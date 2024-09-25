@@ -9,7 +9,11 @@ use std::{
 #[derive(Debug)]
 pub enum Action {
     Sourced,
-    Updated { archived: PathBuf, new: PathBuf },
+    Updated {
+        archived: PathBuf,
+        new: PathBuf,
+        versions: Option<(String, String)>,
+    },
     Skipped,
 }
 
@@ -23,6 +27,11 @@ pub trait SourceAsync<E: Into<Box<dyn std::error::Error>>> {
 
 pub trait Source<E> {
     fn get(&self) -> Result<Vec<u8>, E>;
+}
+
+pub enum UpdateReport {
+    NotRequired,
+    Required(Option<(String, String)>),
 }
 
 /// Implementations on bare functions for convinience
@@ -122,7 +131,7 @@ impl Cache {
     ) -> Result<Action, Error>
     where
         SourceFn: SourceAsync<SourceErr>,
-        UpdateFn: Fn(&[u8], &[u8]) -> Result<bool, VersionError>, // E: Error + Send + Sync + 'static,
+        UpdateFn: Fn(&[u8], &[u8]) -> Result<UpdateReport, VersionError>, // E: Error + Send + Sync + 'static,
         SourceErr: Into<Box<dyn std::error::Error>>,
         VersionError: Into<Box<dyn std::error::Error>>,
     {
@@ -141,16 +150,18 @@ impl Cache {
             let update_required = update_fn(&existing_content, &remote_content)
                 .map_err(|e| Error::UpdateFunction(e.into()))?;
 
-            if update_required {
-                let archived_path = Self::archive_file(&file_path)?;
-                fs::write(&file_path, &remote_content)?;
+            match update_required {
+                UpdateReport::NotRequired => Ok(Action::Skipped),
+                UpdateReport::Required(version_info) => {
+                    let archived_path = Self::archive_file(&file_path)?;
+                    fs::write(&file_path, &remote_content)?;
 
-                Ok(Action::Updated {
-                    archived: archived_path,
-                    new: file_path,
-                })
-            } else {
-                Ok(Action::Skipped)
+                    Ok(Action::Updated {
+                        archived: archived_path,
+                        new: file_path,
+                        versions: version_info,
+                    })
+                }
             }
         }
     }

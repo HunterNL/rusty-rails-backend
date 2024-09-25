@@ -3,6 +3,7 @@ use std::path::Path;
 use tokio::fs;
 
 use crate::{
+    cache::UpdateReport,
     iff,
     ndovloket_api::{self},
 };
@@ -20,11 +21,18 @@ fn print_cacheresult(res: Result<Action, Error>) {
     }
 }
 
-fn is_update_required(old: &[u8], new: &[u8]) -> Result<bool, Box<dyn std::error::Error>> {
+fn is_update_required(old: &[u8], new: &[u8]) -> Result<UpdateReport, Box<dyn std::error::Error>> {
     let old_version = iff::Iff::parse_version_only(old).map_err(|_| anyhow!(" version old"))?;
     let new_version = iff::Iff::parse_version_only(new).map_err(|_| anyhow!(" version new"))?;
 
-    Ok(old_version < new_version)
+    if new > old {
+        Ok(UpdateReport::Required(Some((
+            old_version.to_string(),
+            new_version.to_string(),
+        ))))
+    } else {
+        Ok(UpdateReport::NotRequired)
+    }
 }
 
 #[tokio::main]

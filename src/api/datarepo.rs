@@ -248,6 +248,7 @@ impl DataRepo {
             iff.timetable().header.last_valid_date
         );
         println!("Day count: {}", duration.num_days());
+        println!("Version: {}", iff.header().version);
 
         let rides: Vec<iff::Ride> = iff
             .timetable()
