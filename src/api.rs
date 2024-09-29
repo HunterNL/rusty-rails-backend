@@ -121,6 +121,7 @@ impl<'a> Serialize for ApiObject<'a, Ride> {
     {
         let mut ride = serializer.serialize_struct("ride", 7)?;
         ride.serialize_field("id", &self.inner.id)?;
+        ride.serialize_field("transit_type", &self.inner.transit_mode)?;
         ride.serialize_field("operator", &self.inner.operator)?;
         ride.serialize_field("startTime", &self.inner.start_time())?;
         ride.serialize_field("endTime", &self.inner.end_time())?;
