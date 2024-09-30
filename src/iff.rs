@@ -224,20 +224,18 @@ impl<'a> TimetableEntryRaw<'a> {
 }
 
 #[derive(Debug, PartialEq, Clone, Eq)]
-pub struct Platform {
-    suffix: Option<char>,
-    number: u8,
-    range_to: Option<u8>,
+pub enum Platform {
+    Regular(u8),
+    Split(u8, char),
+    Range(u8, u8),
 }
 
 impl Display for Platform {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self.range_to {
-            Some(to) => f.write_fmt(format_args!("{}-{}", self.number, to)),
-            None => match self.suffix {
-                Some(suffix) => f.write_fmt(format_args!("{}{}", self.number, suffix)),
-                None => f.write_fmt(format_args!("{}", self.number)),
-            },
+        match self {
+            Platform::Regular(n) => f.write_fmt(format_args!("{n}")),
+            Platform::Split(n, suffix) => f.write_fmt(format_args!("{n}{suffix}")),
+            Platform::Range(from, to) => f.write_fmt(format_args!("{from} - {to}")),
         }
     }
 }
@@ -247,26 +245,13 @@ impl Serialize for Platform {
     where
         S: serde::Serializer,
     {
-        let mut output = String::new();
-        output.push_str(&self.number.to_string());
-        if let Some(suffix) = self.suffix {
-            output.push(suffix);
-        } else if let Some(range) = self.range_to {
-            output.push('-');
-            output.push_str(&range.to_string())
-        }
-
-        serializer.serialize_str(&output)
+        serializer.serialize_str(&self.to_string())
     }
 }
 
 impl Platform {
     pub fn plain(n: u8) -> Self {
-        Platform {
-            number: n,
-            suffix: None,
-            range_to: None,
-        }
+        Platform::Regular(n)
     }
 }
 
@@ -281,21 +266,16 @@ impl FromStr for Platform {
         // Common case
         let num_parse_result = u8::from_str(s);
         if let Ok(number) = num_parse_result {
-            return Ok(Platform {
-                number,
-                suffix: None,
-                range_to: None,
-            });
+            return Ok(Platform::Regular(number));
         }
 
         if s.ends_with(|c: char| c.is_alphabetic()) {
             let a = &s[0..s.len() - 1];
 
-            return Ok(Platform {
-                number: a.parse().unwrap(), // todo not unwrap
-                suffix: s.chars().last(),
-                range_to: None,
-            });
+            return Ok(Platform::Split(
+                a.parse().unwrap(),
+                s.chars().last().unwrap(),
+            ));
         }
 
         if s.is_empty() {
@@ -315,11 +295,7 @@ impl FromStr for Platform {
                 .parse()
                 .expect("expected first number parse to succeed");
 
-            return Ok(Platform {
-                number: left,
-                suffix: None,
-                range_to: Some(right),
-            });
+            return Ok(Platform::Range(left, right));
         }
 
         Err(PlatformParseError)
@@ -397,8 +373,8 @@ pub struct PlatformInfo {
 impl PlatformInfo {
     pub fn plain(number: u8, footnote: u64) -> Self {
         PlatformInfo {
-            arrival_platform: Some(Platform::plain(number)),
-            departure_platform: Some(Platform::plain(number)),
+            arrival_platform: Some(Platform::Regular(number)),
+            departure_platform: Some(Platform::Regular(number)),
             footnote,
         }
     }

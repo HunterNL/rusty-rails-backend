@@ -246,8 +246,8 @@ mod test_platform_parse {
     fn test_platform_parse() {
         let input = "?11 ,15 ,00003".into();
         let expected = PlatformInfo {
-            arrival_platform: Some(Platform::plain(11)),
-            departure_platform: Some(Platform::plain(15)),
+            arrival_platform: Some(Platform::Regular(11)),
+            departure_platform: Some(Platform::Regular(15)),
             footnote: 3,
         };
 
@@ -403,8 +403,8 @@ mod test_record {
                         code: code("rta"),
                         stop_kind: StopKind::StopShort(
                             Some(PlatformInfo {
-                                arrival_platform: Some(Platform::plain(1)),
-                                departure_platform: Some(Platform::plain(1)),
+                                arrival_platform: Some(Platform::Regular(1)),
+                                departure_platform: Some(Platform::Regular(1)),
                                 footnote: 3
                             }),
                             DayOffset::from_hour_minute(18, 58)
@@ -529,8 +529,8 @@ mod test_record {
                 code: code("rtd"),
                 stop_kind: StopKind::Departure(
                     Some(PlatformInfo {
-                        departure_platform: Some(Platform::plain(13)),
-                        arrival_platform: Some(Platform::plain(13)),
+                        departure_platform: Some(Platform::Regular(13)),
+                        arrival_platform: Some(Platform::Regular(13)),
                         footnote: 3
                     }),
                     DayOffset::from_hour_minute(18, 50)
@@ -586,16 +586,8 @@ mod test_record {
                     code("asd"),
                     StopKind::Departure(
                         Some(PlatformInfo {
-                            arrival_platform: Some(Platform {
-                                number: 14,
-                                suffix: None,
-                                range_to: None
-                            }),
-                            departure_platform: Some(Platform {
-                                suffix: None,
-                                number: 14,
-                                range_to: None
-                            }),
+                            arrival_platform: Some(Platform::plain(14)),
+                            departure_platform: Some(Platform::plain(14)),
                             footnote: 81
                         }),
                         DayOffset::from_hour_minute(7, 15)
@@ -607,16 +599,8 @@ mod test_record {
                     code("shl"),
                     StopKind::StopLong(
                         Some(PlatformInfo {
-                            arrival_platform: Some(Platform {
-                                suffix: None,
-                                number: 1,
-                                range_to: Some(2)
-                            }),
-                            departure_platform: Some(Platform {
-                                suffix: None,
-                                number: 1,
-                                range_to: Some(2)
-                            }),
+                            arrival_platform: Some(Platform::Range(1, 2)),
+                            departure_platform: Some(Platform::Range(1, 2)),
                             footnote: 81
                         }),
                         DayOffset::from_hour_minute(7, 30),
