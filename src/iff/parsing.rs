@@ -189,7 +189,7 @@ fn leg_for_stop(entry: &TimetableEntry) -> Leg {
 }
 
 /// Turn a slice of TimetableEntry's into Legs
-/// This process collects ajoining waypoints into MovingLegs and
+/// This process collects ajoining waypoints into MovingLegs
 pub fn generate_legs(entries: &[TimetableEntry]) -> Vec<Leg> {
     let mut out = vec![];
     let mut waypoints = vec![];
@@ -199,21 +199,16 @@ pub fn generate_legs(entries: &[TimetableEntry]) -> Vec<Leg> {
     out.push(leg_for_stop(first_stop));
 
     entries.iter().skip(1).for_each(|entry| {
-        // Collect non-stopping points into waypoints. These are needed later on to find the right Links between Stations
+        // Collect non-stopping points into waypoints.
+        // These are needed later on to find the right Links between Stations
         if entry.stop_kind.is_waypoint() {
             waypoints.push(entry);
             return;
         }
 
         out.push(Leg {
-            start: *previous_stop
-                .stop_kind
-                .departure_time()
-                .expect("leg start to have a departure time"),
-            end: *entry
-                .stop_kind
-                .arrival_time()
-                .expect("leg end to have an arrival time"),
+            start: leg_for_stop(previous_stop).end,
+            end: leg_for_stop(entry).start,
             kind: LegKind::Moving {
                 from: previous_stop.code,
                 to: entry.code,

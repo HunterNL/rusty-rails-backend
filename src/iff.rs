@@ -118,6 +118,16 @@ impl Iff {
         parse_delivery_file(content).map_err(|o| o.to_string())
     }
 
+    // pub fn parse_transit_modes(archive: impl Read + io::Seek) -> Result<Header, String> {
+    //     let content = read_string_from_archive(archive, HEADER_FILENAME)?;
+    //     let content = BStr::new(&content);
+    //     if !content.is_ascii() {
+    //         return Err("Expected timetable file to be valid ASCII".to_owned());
+    //     }
+
+    //     parse_transitmode_file(content).map_err(|o| o.to_string())
+    // }
+
     pub fn parse_version_only(data: &[u8]) -> Result<u64, String> {
         let cursor = Cursor::new(data);
         let content = read_bytes_from_archive(cursor, HEADER_FILENAME)?;
@@ -235,7 +245,7 @@ impl Display for Platform {
         match self {
             Platform::Regular(n) => f.write_fmt(format_args!("{n}")),
             Platform::Split(n, suffix) => f.write_fmt(format_args!("{n}{suffix}")),
-            Platform::Range(from, to) => f.write_fmt(format_args!("{from} - {to}")),
+            Platform::Range(from, to) => f.write_fmt(format_args!("{from}-{to}")),
         }
     }
 }
