@@ -12,18 +12,15 @@ pub fn active_rides_in_timespan_endpoint(data: Data<&Arc<DataRepo>>, _req: Strin
     let start = chrono::Utc::now().with_timezone(&chrono_tz::Europe::Amsterdam);
     let end = start + Duration::hours(2); // TODO use arg instead
 
-    let rides: Vec<_> = data
-        .as_ref()
-        .rides_active_in_timespan(
-            &start.naive_local().time(),
-            &end.naive_local().time(),
-            &start.date_naive(),
-        )
-        .iter()
-        .map(|r| r.as_api_object())
-        .collect();
+    let rides: Vec<_> = data.as_ref().rides_active_in_timespan(
+        &start.naive_local().time(),
+        &end.naive_local().time(),
+        &start.date_naive(),
+    );
 
-    let data = serde_json::to_vec(&rides).unwrap();
+    let out: Vec<_> = rides.iter().map(|r| r.as_api_object()).collect();
+
+    let data = serde_json::to_vec(&out).unwrap();
 
     Response::builder()
         .header(header::CONTENT_TYPE, "application/json; charset=utf-8")

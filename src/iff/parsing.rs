@@ -31,7 +31,7 @@ pub fn parse_delivery_file(
     parse_header.parse(input)
 }
 
-use super::{Header, Leg, LegKind, Record, Ride, StopKind, TimetableEntry};
+use super::{Header, Leg, LegKind, Record, RideRecurrence, StopKind, TimetableEntry};
 
 /// Length of dates as they appear in the iff file
 const DATE_FORMAT_LEN: usize = "DDMMYYYY".len();
@@ -281,7 +281,7 @@ fn timetable_normalize_ends(entries: &mut [TimetableEntry]) {
     entries.last_mut().unwrap().stop_kind = StopKind::Arrival(arrival_platform, *arrival_time);
 }
 
-impl Ride {
+impl RideRecurrence {
     pub fn start_time(&self) -> DayOffset {
         timetable_start(self.timetable.as_slice())
     }
@@ -304,7 +304,7 @@ impl Record {
         timetable_end(self.timetable.as_slice())
     }
 
-    pub fn split_on_ride_id(&self) -> impl Iterator<Item = Ride> + '_ {
+    pub fn split_on_ride_id(&self) -> impl Iterator<Item = RideRecurrence> + '_ {
         let is_sole_transit_type = self.transit_types.len() == 1;
 
         if !is_sole_transit_type && self.ride_id.len() > 1 {
@@ -342,7 +342,7 @@ impl Record {
                     self.ride_id.get(index - 1).map(|id| id.ride_id.to_string())
                 };
 
-                Ride {
+                RideRecurrence {
                     transit_mode: transit_type.mode.clone(),
                     timetable,
                     operator: ride_id.company_id,

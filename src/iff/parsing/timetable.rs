@@ -337,7 +337,8 @@ mod test_record {
         dayoffset::DayOffset,
         iff::{
             parsing::{dec_uint_leading, timetable::RecordParser, TransitMode},
-            LocationCache, Platform, PlatformInfo, Record, Ride, RideId, StopKind, TimetableEntry,
+            LocationCache, Platform, PlatformInfo, Record, RideId, RideRecurrence, StopKind,
+            TimetableEntry,
         },
     };
 
@@ -375,7 +376,7 @@ mod test_record {
         };
         let record = record_parser.parse(input).unwrap();
 
-        let rides: Vec<Ride> = record.split_on_ride_id().collect();
+        let rides: Vec<RideRecurrence> = record.split_on_ride_id().collect();
 
         let code = |a: &'static str| locations.lookup_handle(a).unwrap();
 
@@ -386,7 +387,7 @@ mod test_record {
 
         assert_eq!(
             ride0,
-            &Ride {
+            &RideRecurrence {
                 id: "2871".to_owned(),
                 operator: 100,
                 transit_mode: "IC".to_owned(),
@@ -441,7 +442,7 @@ mod test_record {
 
         assert_eq!(
             ride1,
-            &Ride {
+            &RideRecurrence {
                 operator: 100,
                 id: "1771".to_owned(),
                 transit_mode: "IC".to_owned(),

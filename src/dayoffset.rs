@@ -36,6 +36,19 @@ impl<'a> Display for DayOffsetTimetableDisplay<'a> {
     }
 }
 
+pub struct DayOffsetTimetableDisplayNoWrap<'a> {
+    inner: &'a DayOffset,
+}
+
+impl<'a> Display for DayOffsetTimetableDisplayNoWrap<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let hours = self.inner.offset / HOUR;
+        let minutes = (self.inner.offset % HOUR) / MINUTE;
+
+        write!(f, "{:02}:{:02}", hours, minutes)
+    }
+}
+
 impl Ord for DayOffset {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
         self.offset.cmp(&other.offset)
@@ -67,6 +80,10 @@ impl DayOffset {
 
     pub fn display_for_timetable(&self) -> DayOffsetTimetableDisplay<'_> {
         DayOffsetTimetableDisplay { inner: self }
+    }
+
+    pub fn display_unwrapped(&self) -> DayOffsetTimetableDisplayNoWrap<'_> {
+        DayOffsetTimetableDisplayNoWrap { inner: self }
     }
 }
 

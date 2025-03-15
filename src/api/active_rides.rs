@@ -16,12 +16,11 @@ pub fn active_rides_endpoint(data: Data<&Arc<DataRepo>>, _req: String) -> Respon
 
     let rides: Vec<_> = data
         .as_ref()
-        .rides_active_at_time(&now.naive_local().time(), &now.date_naive())
-        .iter()
-        .map(|r| r.as_api_object())
-        .collect();
+        .rides_active_at_time(&now.naive_local().time(), &now.date_naive());
+    // .collect();
+    let out: Vec<_> = rides.iter().map(|r| r.as_api_object()).collect();
 
-    let data = serde_json::to_vec(&rides);
+    let data = serde_json::to_vec(&out);
 
     match data {
         Ok(json) => Response::builder()

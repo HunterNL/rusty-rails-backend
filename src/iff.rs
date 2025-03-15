@@ -6,7 +6,7 @@ use std::{
     str::FromStr,
 };
 
-use chrono::NaiveDate;
+use chrono::{NaiveDate, NaiveTime};
 use parsing::{
     parse_company_file, parse_delivery_file, parse_footnote_file, parse_timetable_file, CompanyFile,
 };
@@ -472,8 +472,8 @@ pub struct RideValidity {
 }
 
 impl RideValidity {
-    pub fn is_valid_on_day(&self, footnote_id: u64, date: NaiveDate) -> Result<bool, ()> {
-        if date < self.header.first_valid_date || date > self.header.last_valid_date {
+    pub fn is_valid_on_day(&self, footnote_id: u64, date: &NaiveDate) -> Result<bool, ()> {
+        if date < &self.header.first_valid_date || date > &self.header.last_valid_date {
             return Err(()); // Out of validity range
         }
 
@@ -516,7 +516,7 @@ pub struct Footnote {
 }
 
 #[derive(Debug, Serialize, Clone, PartialEq, Eq)]
-pub struct Ride {
+pub struct RideRecurrence {
     pub id: String,
     pub transit_mode: String,
     pub timetable: Vec<TimetableEntry>,
@@ -526,7 +526,7 @@ pub struct Ride {
     pub operator: u32,
 }
 
-pub struct RidePrettyPrint<'a>(&'a Ride, &'a LocationCache);
+pub struct RidePrettyPrint<'a>(&'a RideRecurrence, &'a LocationCache);
 
 impl<'a> Display for RidePrettyPrint<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -541,7 +541,7 @@ impl<'a> Display for RidePrettyPrint<'a> {
     }
 }
 
-impl Ride {
+impl RideRecurrence {
     pub fn stop_at_code(&self, code: &LocationCodeHandle) -> Option<&TimetableEntry> {
         self.timetable
             .iter()
@@ -556,6 +556,14 @@ impl Ride {
 
     pub fn pretty_print<'a>(&'a self, codes: &'a LocationCache) -> RidePrettyPrint<'a> {
         RidePrettyPrint(self, codes)
+    }
+
+    pub fn departure_time(&self) -> DayOffset {
+        self.start_time()
+    }
+
+    pub fn arrival_time(&self) -> DayOffset {
+        self.end_time()
     }
 }
 

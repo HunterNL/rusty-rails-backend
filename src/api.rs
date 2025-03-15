@@ -30,7 +30,7 @@ mod location_map;
 use crate::{
     api::{active_rides::active_rides_endpoint, all_rides::all_rides_endpoint},
     fetch,
-    iff::{Leg, LegKind, Record, Ride, StopKind},
+    iff::{Leg, LegKind, Record, RideRecurrence, StopKind},
     AppConfig,
 };
 
@@ -48,7 +48,7 @@ pub trait IntoAPIObject {
 
 impl IntoAPIObject for Record {}
 impl IntoAPIObject for Leg {}
-impl IntoAPIObject for Ride {}
+impl IntoAPIObject for RideRecurrence {}
 
 fn stopkind_to_num(stop_kind: &StopKind) -> u8 {
     match stop_kind {
@@ -114,7 +114,7 @@ impl<'a> Serialize for ApiObject<'a, Record> {
     }
 }
 
-impl<'a> Serialize for ApiObject<'a, Ride> {
+impl<'a> Serialize for ApiObject<'a, RideRecurrence> {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: serde::Serializer,
@@ -196,7 +196,7 @@ struct RoutePlannerResponse<'a> {
     /// Possible routes
     trips: Vec<RoutePlannerTrip>,
     /// All rides used in the above routes
-    rides: Vec<ApiObject<'a, Ride>>,
+    rides: Vec<ApiObject<'a, RideRecurrence>>,
 }
 
 #[derive(Serialize)]
@@ -248,7 +248,7 @@ impl<'a> RoutePlannerResponse<'a> {
             rides: repo
                 .rides()
                 .iter()
-                .filter(|r| repo.is_ride_valid(r.day_validity, now.date_naive()))
+                .filter(|r| repo.is_ride_valid(r.day_validity, &now.date_naive()))
                 .filter(|ride| trip_ids.contains(&ride.id))
                 .map(|r| r.as_api_object())
                 .collect(),

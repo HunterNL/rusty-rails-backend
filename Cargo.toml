@@ -9,7 +9,7 @@ edition = "2021"
 [dependencies]
 anyhow = "1.0.81"
 bytes = "1.5.0"
-chrono = { version = "0.4.31", features = ["clock"] }
+chrono = { version = "0.4.31", features = ["clock","serde"] }
 chrono-tz = { version = "0.8.5", features = ["filter-by-regex"] }
 clap = { version = "4.4.11", features = ["derive"] }
 ctrlc = "3.4.4"
