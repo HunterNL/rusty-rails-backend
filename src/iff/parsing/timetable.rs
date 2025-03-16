@@ -8,8 +8,9 @@ use winnow::{
 };
 
 use crate::iff::{
-    DayValidityFootnote, Footnote, Header, LocationCache, Platform, PlatformInfo, Record, RideId,
-    RideValidity, StopKind, TimeTable, TimetableEntryRaw,
+    timetable::{TimetableEntry, TimetableEntryRaw},
+    DayValidityFootnote, Footnote, Header, Leg, LegKind, LocationCache, Platform, PlatformInfo,
+    Record, RideId, RideValidity, StopKind, TimeTable,
 };
 
 use super::{
@@ -337,9 +338,9 @@ mod test_record {
         dayoffset::DayOffset,
         iff::{
             parsing::{dec_uint_leading, timetable::RecordParser, TransitMode},
-            LocationCache, Platform, PlatformInfo, Record, RideId, RideRecurrence, StopKind,
-            TimetableEntry,
+            LocationCache, Platform, PlatformInfo, Record, RideId, StopKind, TimetableEntry,
         },
+        ride_recurrance::RideRecurrence,
     };
 
     macro_rules! platform {

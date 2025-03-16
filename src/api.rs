@@ -30,15 +30,19 @@ mod location_map;
 use crate::{
     api::{active_rides::active_rides_endpoint, all_rides::all_rides_endpoint},
     fetch,
-    iff::{Leg, LegKind, Record, RideRecurrence, StopKind},
+    iff::{Leg, LegKind, Record, StopKind},
+    ride::Ride,
+    ride_recurrance::RideRecurrence,
     AppConfig,
 };
 
 use self::datarepo::DataRepo;
 
 pub struct ApiObject<'a, T: ?Sized> {
-    inner: &'a T,
+    pub(crate) inner: &'a T,
 }
+
+impl IntoAPIObject for Ride<'_> {}
 
 pub trait IntoAPIObject {
     fn as_api_object(&self) -> ApiObject<'_, Self> {
@@ -344,4 +348,16 @@ async fn start_server(
     println!("Server shutdown");
 
     Ok(())
+}
+
+impl Serialize for ApiObject<'_, Ride<'_>> {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        let mut a = serializer.serialize_struct("ride", 2)?;
+        a.serialize_field("date", &self.inner.date)?;
+        a.serialize_field("line", &self.inner.recurrence.as_api_object())?;
+        a.end()
+    }
 }

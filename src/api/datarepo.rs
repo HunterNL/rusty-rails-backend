@@ -10,13 +10,13 @@ use chrono::{NaiveDate, NaiveTime};
 use serde::{ser::SerializeStruct, Serialize};
 mod links;
 mod stations;
+use crate::ride_recurrance::RideRecurrence;
 use crate::{
     api::datarepo::{links::extract_links, stations::extract_stations},
     dayoffset::DayOffset,
     fetch::{ROUTE_FILEPATH, STATION_FILEPATH, TIMETABLE_PATH},
-    iff::{
-        self, Company, Iff, Leg, LegKind, LocationCache, LocationCodeHandle, Record, RideRecurrence,
-    },
+    iff::{self, Company, Iff, Leg, LegKind, LocationCache, LocationCodeHandle, Record},
+    ride::Ride,
 };
 
 use self::{links::Link, stations::Station};
@@ -30,30 +30,11 @@ pub struct DataRepo {
     links: Vec<Link>,
     stations: Vec<stations::Station>,
     iff: Iff,
-    rides: Vec<iff::RideRecurrence>,
+    rides: Vec<RideRecurrence>,
     rides_by_day: HashMap<NaiveDate, Vec<usize>>,
     day_stats: HashMap<NaiveDate, Daymeta>,
     version: u64,
 }
-#[derive(Serialize, Debug, Clone)]
-pub struct Ride<'a> {
-    pub date: NaiveDate,
-    pub recurrence: &'a RideRecurrence,
-}
-
-impl Serialize for ApiObject<'_, Ride<'_>> {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        let mut a = serializer.serialize_struct("ride", 2)?;
-        a.serialize_field("date", &self.inner.date)?;
-        a.serialize_field("line", &self.inner.recurrence.as_api_object())?;
-        a.end()
-    }
-}
-
-impl IntoAPIObject for Ride<'_> {}
 
 /// Key to identify links, looking up links with the waypoint identifiers the wrong way around should return a corrected Link
 #[derive(Eq, Hash, PartialEq, Debug)]
@@ -282,7 +263,7 @@ impl DataRepo {
         println!("Day count: {}", duration.num_days());
         println!("Version: {}", iff.header().version);
 
-        let rides: Vec<iff::RideRecurrence> = iff
+        let rides: Vec<RideRecurrence> = iff
             .timetable()
             .rides
             .iter()

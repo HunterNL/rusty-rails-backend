@@ -11,6 +11,7 @@ use parsing::{
     parse_company_file, parse_delivery_file, parse_footnote_file, parse_timetable_file, CompanyFile,
 };
 use serde::Serialize;
+use timetable::TimetableEntry;
 use winnow::{BStr, Parser};
 
 use crate::dayoffset::DayOffset;
@@ -18,6 +19,7 @@ use crate::dayoffset::DayOffset;
 use self::parsing::TransitMode;
 
 mod parsing;
+pub mod timetable;
 
 const FOOTNOTE_FILE_NAME: &str = "footnote.dat";
 const TIMETABLE_FILE_NAME: &str = "timetbls.dat";
@@ -178,59 +180,6 @@ fn read_bytes_from_archive(
     }
 
     Ok(buf)
-}
-
-#[derive(PartialEq, Debug, Eq, Clone, Serialize)]
-pub struct TimetableEntry {
-    pub code: LocationCodeHandle,
-    pub stop_kind: StopKind,
-}
-
-impl TimetableEntry {
-    fn serializable<'a, 'b>(&'a self, cache: &'b LocationCache) -> TimetableEntryContext
-    where
-        'b: 'a,
-    {
-        TimetableEntryContext {
-            entry: self,
-            context: cache,
-        }
-    }
-}
-
-pub struct TimetableEntryContext<'e, 'c> {
-    pub entry: &'e TimetableEntry,
-    pub context: &'c LocationCache,
-}
-
-impl<'e, 'c> Serialize for TimetableEntryContext<'e, 'c> {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        let code = self.context.get_str(&self.entry.code).unwrap();
-
-        TimetableEntryRaw {
-            stop_kind: self.entry.stop_kind.clone(),
-            code,
-        }
-        .serialize(serializer)
-    }
-}
-
-#[derive(Serialize)]
-struct TimetableEntryRaw<'a> {
-    pub code: &'a str,
-    pub stop_kind: StopKind,
-}
-
-impl<'a> TimetableEntryRaw<'a> {
-    pub fn to_proper(&self, cache: &mut LocationCache) -> TimetableEntry {
-        TimetableEntry {
-            code: cache.get_handle(self.code),
-            stop_kind: self.stop_kind.clone(),
-        }
-    }
 }
 
 #[derive(Debug, PartialEq, Clone, Eq)]
@@ -513,58 +462,6 @@ pub struct Footnote {
     pub footnote: u64,
     pub first_stop: u64,
     pub last_stop: u64,
-}
-
-#[derive(Debug, Serialize, Clone, PartialEq, Eq)]
-pub struct RideRecurrence {
-    pub id: String,
-    pub transit_mode: String,
-    pub timetable: Vec<TimetableEntry>,
-    pub day_validity: u64,
-    pub previous: Option<String>,
-    pub next: Option<String>,
-    pub operator: u32,
-}
-
-pub struct RidePrettyPrint<'a>(&'a RideRecurrence, &'a LocationCache);
-
-impl<'a> Display for RidePrettyPrint<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_char('#')?;
-        f.write_str(&self.0.id)?;
-        for stop in &self.0.timetable {
-            let code = self.1.get_str(&stop.code).unwrap();
-            f.write_str(code)?;
-            f.write_char('\n')?;
-        }
-        f.write_char('\n')
-    }
-}
-
-impl RideRecurrence {
-    pub fn stop_at_code(&self, code: &LocationCodeHandle) -> Option<&TimetableEntry> {
-        self.timetable
-            .iter()
-            .find(|entry| entry.code == *code && !entry.stop_kind.is_waypoint())
-    }
-    // TODO This needs to take footnotes into account for special trains eg international
-    pub fn boardable_at_code(&self, code: &LocationCodeHandle) -> bool {
-        self.timetable
-            .iter()
-            .any(|entry| entry.code == *code && entry.stop_kind.is_boardable())
-    }
-
-    pub fn pretty_print<'a>(&'a self, codes: &'a LocationCache) -> RidePrettyPrint<'a> {
-        RidePrettyPrint(self, codes)
-    }
-
-    pub fn departure_time(&self) -> DayOffset {
-        self.start_time()
-    }
-
-    pub fn arrival_time(&self) -> DayOffset {
-        self.end_time()
-    }
 }
 
 #[derive(Debug)]

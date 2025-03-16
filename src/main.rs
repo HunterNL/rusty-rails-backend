@@ -9,8 +9,9 @@ mod fetch;
 mod iff;
 mod ndovloket_api;
 mod print;
+mod ride;
+mod ride_recurrance;
 mod time;
-
 use std::{path::PathBuf, time::Instant};
 
 use anyhow::{Context, Ok};

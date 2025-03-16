@@ -14,6 +14,7 @@ use winnow::token::{take, take_till, take_until, take_while};
 use winnow::{BStr, PResult, Parser};
 
 use crate::dayoffset::DayOffset;
+use crate::ride_recurrance::RideRecurrence;
 
 mod timetable;
 pub use timetable::parse_footnote_file;
@@ -31,7 +32,10 @@ pub fn parse_delivery_file(
     parse_header.parse(input)
 }
 
-use super::{Header, Leg, LegKind, Record, RideRecurrence, StopKind, TimetableEntry};
+use super::timetable::{
+    generate_legs, timetable_end, timetable_normalize_ends, timetable_start, timetable_stop_index,
+};
+use super::{Header, Leg, LegKind, Record, StopKind, TimetableEntry};
 
 /// Length of dates as they appear in the iff file
 const DATE_FORMAT_LEN: usize = "DDMMYYYY".len();
@@ -164,136 +168,7 @@ mod header_tests {
     }
 }
 
-fn leg_for_stop(entry: &TimetableEntry) -> Leg {
-    let (arrival, departure) = match entry.stop_kind {
-        StopKind::Departure(_, scheduled_departure) => {
-            (scheduled_departure.offset_by(-1), scheduled_departure)
-        }
-        StopKind::Arrival(_, scheduled_arrival) => {
-            (scheduled_arrival, scheduled_arrival.offset_by(1))
-        }
-        StopKind::Waypoint => {
-            panic!("Shouldn't happen, waypoint should've been filtered out before")
-        }
-        StopKind::StopShort(_, arrival_departure) => {
-            (arrival_departure, arrival_departure.offset_by(1))
-        }
-        StopKind::StopLong(_, arrival, departure) => (arrival, departure),
-    };
-
-    Leg {
-        start: arrival,
-        end: departure,
-        kind: LegKind::Stationary(entry.code, entry.stop_kind.clone()),
-    }
-}
-
-/// Turn a slice of TimetableEntry's into Legs
-/// This process collects ajoining waypoints into MovingLegs
-pub fn generate_legs(entries: &[TimetableEntry]) -> Vec<Leg> {
-    let mut out = vec![];
-    let mut waypoints = vec![];
-    let first_stop = entries.first().expect("timetable to have an entry");
-    let mut previous_stop = first_stop;
-
-    out.push(leg_for_stop(first_stop));
-
-    entries.iter().skip(1).for_each(|entry| {
-        // Collect non-stopping points into waypoints.
-        // These are needed later on to find the right Links between Stations
-        if entry.stop_kind.is_waypoint() {
-            waypoints.push(entry);
-            return;
-        }
-
-        out.push(Leg {
-            start: leg_for_stop(previous_stop).end,
-            end: leg_for_stop(entry).start,
-            kind: LegKind::Moving {
-                from: previous_stop.code,
-                to: entry.code,
-                waypoints: waypoints.iter().map(|c| c.code).collect(),
-            },
-        });
-
-        previous_stop = entry;
-
-        waypoints.clear();
-
-        out.push(leg_for_stop(entry));
-    });
-
-    out
-}
-
 // Gets the index of the nth stop, skipping waypoints
-fn timetable_stop_index(entries: &[TimetableEntry], nth: usize) -> Option<usize> {
-    entries
-        .iter()
-        .enumerate()
-        .filter(|(_, stop)| !stop.stop_kind.is_waypoint())
-        .nth(nth)
-        .map(|(index, _)| index)
-}
-
-fn timetable_start(entries: &[TimetableEntry]) -> DayOffset {
-    *entries
-        .first()
-        .expect("timetable to have an entry")
-        .stop_kind
-        .departure_time()
-        .expect("first entry to have a departure time")
-}
-
-fn timetable_end(entries: &[TimetableEntry]) -> DayOffset {
-    *entries
-        .last()
-        .expect("timetable to have an entry")
-        .stop_kind
-        .arrival_time()
-        .expect("last entry to have an arrival time")
-}
-
-fn timetable_normalize_ends(entries: &mut [TimetableEntry]) {
-    assert!(entries.len() >= 2);
-
-    // Change first entry into a departure
-    let departure_time = entries
-        .first()
-        .unwrap()
-        .stop_kind
-        .departure_time()
-        .expect("stop have departure time");
-    let departure_platform = entries.first().unwrap().stop_kind.platform_info().cloned();
-
-    entries.first_mut().unwrap().stop_kind =
-        StopKind::Departure(departure_platform, *departure_time);
-
-    // Change last entry into a arrival
-    let arrival_time = entries
-        .last()
-        .unwrap()
-        .stop_kind
-        .arrival_time()
-        .expect("stop to have arrival time");
-    let arrival_platform = entries.last().unwrap().stop_kind.platform_info().cloned();
-
-    entries.last_mut().unwrap().stop_kind = StopKind::Arrival(arrival_platform, *arrival_time);
-}
-
-impl RideRecurrence {
-    pub fn start_time(&self) -> DayOffset {
-        timetable_start(self.timetable.as_slice())
-    }
-
-    pub fn end_time(&self) -> DayOffset {
-        timetable_end(self.timetable.as_slice())
-    }
-
-    pub fn generate_legs(&self) -> Vec<Leg> {
-        generate_legs(&self.timetable)
-    }
-}
 
 impl Record {
     pub fn start_time(&self) -> DayOffset {
