@@ -150,17 +150,18 @@ pub fn generate_legs(entries: &[TimetableEntry]) -> Vec<Leg> {
 
 fn leg_for_stop(entry: &TimetableEntry) -> Leg {
     let (arrival, departure) = match entry.stop_kind {
-        StopKind::Departure(_, scheduled_departure) => {
-            (scheduled_departure.offset_by(-1), scheduled_departure)
-        }
+        StopKind::Departure(_, scheduled_departure) => (
+            scheduled_departure.offset_by_minutes(-1),
+            scheduled_departure,
+        ),
         StopKind::Arrival(_, scheduled_arrival) => {
-            (scheduled_arrival, scheduled_arrival.offset_by(1))
+            (scheduled_arrival, scheduled_arrival.offset_by_minutes(1))
         }
         StopKind::Waypoint => {
             panic!("Shouldn't happen, waypoint should've been filtered out before")
         }
         StopKind::StopShort(_, arrival_departure) => {
-            (arrival_departure, arrival_departure.offset_by(1))
+            (arrival_departure, arrival_departure.offset_by_minutes(1))
         }
         StopKind::StopLong(_, arrival, departure) => (arrival, departure),
     };

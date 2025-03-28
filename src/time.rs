@@ -1,5 +1,10 @@
-
+const TIMETABLE_TZ: chrono_tz::Tz = chrono_tz::Europe::Amsterdam;
 pub fn timetable_now() -> chrono::DateTime<chrono_tz::Tz> {
-    let timetable_tz = chrono_tz::Europe::Amsterdam;
-    chrono::Utc::now().with_timezone(&timetable_tz)
+    chrono::Utc::now().with_timezone(&TIMETABLE_TZ)
+}
+
+pub fn timetable_now_naive() -> chrono::NaiveDateTime {
+    chrono::Utc::now()
+        .with_timezone(&TIMETABLE_TZ)
+        .naive_local()
 }

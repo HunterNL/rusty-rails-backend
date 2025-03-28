@@ -1,5 +1,6 @@
 use std::fmt::{Display, Write};
 
+use chrono::{NaiveDateTime, NaiveTime};
 use serde::Serialize;
 
 use crate::{
@@ -8,6 +9,7 @@ use crate::{
         timetable::{generate_legs, timetable_end, timetable_start, TimetableEntry},
         Leg, LocationCache, LocationCodeHandle,
     },
+    ride::Ride,
 };
 
 #[derive(Debug, Serialize, Clone, PartialEq, Eq)]
@@ -23,7 +25,7 @@ pub struct RideRecurrence {
 
 pub struct RidePrettyPrint<'a>(&'a RideRecurrence, &'a LocationCache);
 
-impl<'a> Display for RidePrettyPrint<'a> {
+impl Display for RidePrettyPrint<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_char('#')?;
         f.write_str(&self.0.id)?;
@@ -70,5 +72,13 @@ impl RideRecurrence {
 
     pub fn generate_legs(&self) -> Vec<Leg> {
         generate_legs(&self.timetable)
+    }
+
+    pub fn is_active_at_time(&self, time: DayOffset) -> bool {
+        self.start_time() < time && self.end_time() < time
+    }
+
+    pub fn is_active_in_timespan(&self, start: DayOffset, end: DayOffset) -> bool {
+        self.end_time() > start && self.start_time() < end
     }
 }

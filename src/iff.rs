@@ -58,6 +58,10 @@ impl Iff {
         &mut self.timetable
     }
 
+    pub fn rides(&self) -> &[Record] {
+        &self.timetable().rides
+    }
+
     pub fn rides_mut(&mut self) -> &mut Vec<Record> {
         &mut self.timetable.rides
     }
@@ -426,15 +430,18 @@ impl RideValidity {
             return Err(()); // Out of validity range
         }
 
-        //TODO Investigate, Might be off by one
-        let day_id = date
-            .signed_duration_since(self.header.first_valid_date)
-            .num_days() as u64;
+        let day_id = self.day_index_from_date(date);
 
-        self.validities.get(&footnote_id).ok_or(()).map(|v| {
-            *v.get(day_id as usize)
-                .expect("to find footnote in validity lookup")
-        })
+        self.validities
+            .get(&footnote_id)
+            .ok_or(())
+            .map(|v| *v.get(day_id).expect("to find footnote in validity lookup"))
+    }
+
+    //TODO Investigate, Might be off by one
+    pub fn day_index_from_date(&self, date: &NaiveDate) -> usize {
+        date.signed_duration_since(self.header.first_valid_date)
+            .num_days() as usize
     }
 }
 

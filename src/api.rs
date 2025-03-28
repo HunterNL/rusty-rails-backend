@@ -158,8 +158,8 @@ pub fn serve(config: &AppConfig, autofetch: bool) -> Result<(), anyhow::Error> {
     println!("Starting serve...");
 
     let http_dir = config.cache_dir.join(HTTP_CACHE_SUBDIR);
-    let mut data = datarepo::DataRepo::new(&config.cache_dir);
-    data.filter_unknown_legs();
+    let data = datarepo::DataRepo::new(&config.cache_dir);
+    // data.filter_unknown_legs();
 
     prepare_files(&data, &http_dir)?;
 

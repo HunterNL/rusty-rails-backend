@@ -21,6 +21,22 @@ pub struct DayOffset {
     offset: u32,
 }
 
+impl From<NaiveTime> for DayOffset {
+    fn from(value: NaiveTime) -> Self {
+        Self {
+            offset: value.num_seconds_from_midnight() * SECOND,
+        }
+    }
+}
+
+impl From<&NaiveTime> for DayOffset {
+    fn from(value: &NaiveTime) -> Self {
+        Self {
+            offset: value.num_seconds_from_midnight() * SECOND,
+        }
+    }
+}
+
 pub struct DayOffsetTimetableDisplay<'a> {
     inner: &'a DayOffset,
 }
@@ -72,10 +88,16 @@ impl DayOffset {
         Self::from_hour_minute(time.hour(), time.minute())
     }
 
-    pub fn offset_by(&self, minutes: i32) -> Self {
+    pub fn offset_by_minutes(&self, minutes: i32) -> Self {
         Self {
             offset: self.offset.saturating_add_signed(minutes * (MINUTE as i32)),
         }
+    }
+
+    pub fn offset_by_days(&self, days: u32) -> Option<Self> {
+        Some(Self {
+            offset: self.offset.checked_add(days * DAY)?,
+        })
     }
 
     pub fn display_for_timetable(&self) -> DayOffsetTimetableDisplay<'_> {

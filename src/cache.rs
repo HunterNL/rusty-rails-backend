@@ -28,7 +28,7 @@ pub trait SourceAsync<E: Into<Box<dyn std::error::Error>>> {
 pub trait Source<E> {
     fn get(&self) -> Result<Vec<u8>, E>;
 }
-
+#[derive(Debug)]
 pub enum UpdateReport {
     NotRequired,
     Required(Option<(String, String)>),
@@ -149,6 +149,8 @@ impl Cache {
             let existing_content = fs::read(&file_path)?;
             let update_required = update_fn(&existing_content, &remote_content)
                 .map_err(|e| Error::UpdateFunction(e.into()))?;
+
+            println!("UpdateReport: {:?}", update_required);
 
             match update_required {
                 UpdateReport::NotRequired => Ok(Action::Skipped),

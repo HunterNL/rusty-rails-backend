@@ -6,8 +6,7 @@ use std::{
     iter,
 };
 
-use chrono::{NaiveDate, NaiveTime};
-use serde::{ser::SerializeStruct, Serialize};
+use chrono::{Days, NaiveDate, NaiveDateTime, NaiveTime};
 mod links;
 mod stations;
 use crate::ride_recurrance::RideRecurrence;
@@ -15,13 +14,11 @@ use crate::{
     api::datarepo::{links::extract_links, stations::extract_stations},
     dayoffset::DayOffset,
     fetch::{ROUTE_FILEPATH, STATION_FILEPATH, TIMETABLE_PATH},
-    iff::{self, Company, Iff, Leg, LegKind, LocationCache, LocationCodeHandle, Record},
+    iff::{Company, Iff, Leg, LegKind, LocationCache, LocationCodeHandle, Record},
     ride::Ride,
 };
 
 use self::{links::Link, stations::Station};
-
-use super::{ApiObject, IntoAPIObject};
 
 // use super::ApiSerializationContext;
 
@@ -31,7 +28,7 @@ pub struct DataRepo {
     stations: Vec<stations::Station>,
     iff: Iff,
     rides: Vec<RideRecurrence>,
-    rides_by_day: HashMap<NaiveDate, Vec<usize>>,
+    rides_by_day: HashMap<NaiveDate, Vec<RideRecurrence>>,
     day_stats: HashMap<NaiveDate, Daymeta>,
     version: u64,
 }
@@ -61,6 +58,7 @@ impl MissingLinkReport {
 struct Daymeta {
     first_ride_start: DayOffset,
     last_ride_end: DayOffset,
+    ride_count: usize,
 }
 
 impl<'a, 'b> Display for MissingLinkReportDisplay<'a, 'b> {
@@ -213,7 +211,7 @@ pub fn select_station_by_name<'a>(stations: &'a [Station], needle: &str) -> Opti
         .filter(|(_, name)| name.contains(needle.as_str()))
         .collect();
 
-    return match candidate_matches.len() {
+    match candidate_matches.len() {
         0 => None,
         1 => candidate_matches
             .first()
@@ -227,7 +225,7 @@ pub fn select_station_by_name<'a>(stations: &'a [Station], needle: &str) -> Opti
 
             candidate_matches.first().map(|a| a.0)
         }
-    };
+    }
 }
 
 impl DataRepo {
@@ -263,31 +261,26 @@ impl DataRepo {
         println!("Day count: {}", duration.num_days());
         println!("Version: {}", iff.header().version);
 
-        let rides: Vec<RideRecurrence> = iff
-            .timetable()
-            .rides
-            .iter()
-            .flat_map(|r| r.split_on_ride_id())
-            .collect();
-
+        let rides = Self::create_valid_rides(&iff.rides(), &links, &stations, &iff.locations);
         let version = iff.header().version;
         let mut rides_by_day = HashMap::new();
 
+        // BAD
         iff.timetable()
             .header
             .first_valid_date
             .iter_days()
             .take_while(|d| d <= &iff.timetable().header.last_valid_date)
             .for_each(|date| {
-                let mut rides_on_day: Vec<_> = rides
+                let rides_on_day: Vec<_> = rides
                     .iter()
                     .enumerate()
-                    .filter(|(index, ride)| {
+                    .filter(|(_, ride)| {
                         iff.validity()
                             .is_valid_on_day(ride.day_validity, &date)
                             .unwrap()
                     })
-                    .map(|a| a.0)
+                    .map(|a| a.1.clone())
                     .collect();
                 rides_by_day.insert(date, rides_on_day);
 
@@ -307,24 +300,27 @@ impl DataRepo {
             .map(|(day, indexes)| {
                 let min = indexes
                     .iter()
-                    .map(|i| rides.get(*i).unwrap())
+                    // .map(|i| rides.get(*i).unwrap())
                     .min_by_key(|r| r.departure_time())
                     .map(|r| r.departure_time())
                     .unwrap();
 
                 let max = indexes
                     .iter()
-                    .map(|i| rides.get(*i).expect("recurrence to refer to valid ride id"))
+                    // .map(|i| rides.get(*i).expect("recurrence to refer to valid ride id"))
                     .max_by_key(|r| r.arrival_time())
                     .map(|r| r.departure_time())
                     .unwrap();
 
+                let count = indexes.len();
+
                 let dm: Daymeta = Daymeta {
                     first_ride_start: min,
                     last_ride_end: max,
+                    ride_count: count,
                 };
 
-                (day.clone(), dm)
+                (*day, dm)
             })
             .collect();
 
@@ -332,10 +328,11 @@ impl DataRepo {
         temp.sort_unstable_by_key(|a| a.0);
         temp.iter().for_each(|(date, stats)| {
             println!(
-                "{} {} {}",
+                "{} {} {} {}",
                 date,
                 stats.first_ride_start.display_unwrapped(),
-                stats.last_ride_end.display_unwrapped()
+                stats.last_ride_end.display_unwrapped(),
+                stats.ride_count,
             )
         });
 
@@ -385,39 +382,78 @@ impl DataRepo {
             .for_each(|e| println!("{} ({})", e.0.display(location_cache), e.1))
     }
 
-    pub fn filter_unknown_legs(&mut self) {
+    pub fn rides_active_on_day(&self, date: &NaiveDate) -> Vec<Ride<'_>> {
+        // let index = self.iff.validity().day_index_from_date(date);
+        //
+        return self
+            .rides_by_day
+            .get(date)
+            .unwrap()
+            .iter()
+            .map(|r| Ride {
+                recurrence: r,
+                date: *date,
+            })
+            .collect();
+
+        self.rides
+            .iter()
+            .filter(|r| {
+                self.iff
+                    .validity()
+                    .is_valid_on_day(r.day_validity, date)
+                    .unwrap()
+            })
+            .map(|a| Ride {
+                date: *date,
+                recurrence: a,
+            })
+            .collect()
+
+        // self.rides_by_day
+        //     .get(date)
+        //     .unwrap()
+        //     .iter()
+        //     .flat_map(|a| self.rides.get(*a))
+        //     .map(|recur| Ride {
+        //         date: *date,
+        //         recurrence: recur,
+        //     })
+        //     .collect()
+    }
+
+    pub fn create_valid_rides(
+        record: &[Record],
+        links: &[Link],
+        stations: &[Station],
+        location_cache: &LocationCache,
+    ) -> Vec<RideRecurrence> {
         // TODO Drop this check and deal with skipping waypoints throughout the app, or deal with translating stations from the iff into coordinates
         // This filters out timetable entries that contain stops that we don't have data on, mostly (entirely?) international trains
-        println!(
-            "Pre data filter ride #:  {}",
-            self.iff.timetable().rides.len()
-        );
+        // println!(
+        //     "Pre data filter ride #:  {}",
+        //     self.iff.timetable().rides.len()
+        // );
 
-        let link_map: HashMap<LinkCode, Link> = self
-            .links
+        let link_map: HashMap<LinkCode, Link> = links
             .iter()
             .map(|link| (link.link_code(), link.clone()))
             .collect();
 
-        let station_codes: HashSet<String> = self.stations.iter().map(|s| s.code.clone()).collect();
-        let location_cache = &self.iff.locations.clone(); // Clone is safe since it's only being
+        let station_codes: HashSet<String> = stations.iter().map(|s| s.code.clone()).collect();
+        // let location_cache = self.iff.locations.clone(); // Clone is safe since it's only being
 
-        self.iff
-            .rides_mut()
-            .retain(|ride| has_complete_data(ride, &station_codes, location_cache, &link_map));
-
-        println!(
-            "Post data filter ride #: {}",
-            self.iff.timetable().rides.len()
-        );
-
-        self.rides = self
-            .iff
-            .timetable()
-            .rides
+        let records: Vec<&Record> = record
             .iter()
-            .flat_map(|r| r.split_on_ride_id())
-            .collect()
+            .filter(|ride| has_complete_data(ride, &station_codes, location_cache, &link_map))
+            .collect();
+
+        // println!(
+        //     "Post data filter ride #: {}",
+        //     self.iff.timetable().rides.len()
+        // );
+
+        records.iter().flat_map(|r| r.split_on_ride_id()).collect()
     }
 
     pub fn rides(&self) -> &[RideRecurrence] {
@@ -459,12 +495,51 @@ impl DataRepo {
 
     pub fn rides_active_in_timespan(
         &self,
-        time_start: &NaiveTime,
-        time_end: &NaiveTime,
-        date: &NaiveDate,
+        time_start: &NaiveDateTime,
+        time_end: &NaiveDateTime,
     ) -> Vec<Ride> {
-        let offset_start = DayOffset::from_naivetime(time_start);
-        let offset_end = DayOffset::from_naivetime(time_end);
+        // let timespan = time_start.time();
+        let date_current = time_start.date();
+        // let date_yesterday = date_current
+        //     .checked_sub_days(Days::new(1))
+        //     .expect("could find yesterday");
+
+        // let rides_yesterday = iter::once(date_yesterday).map(|date| self.iff.validity().day_index_from_date(&date)).flat_map(|index| {
+        // self
+        // })
+        //
+        //
+        println!("{}", date_current);
+        let mut rides_today = self.rides_active_on_day(&date_current);
+        rides_today.retain(|a| {
+            a.recurrence
+                .is_active_in_timespan(time_start.time().into(), time_end.time().into())
+        });
+
+        return rides_today;
+
+        // [(date_current,0),(date_yesterday,60*24)].iter().map(|(date,offset)| self.iff.validity().day_index_from_date(date)).flat_map(|day_index| {
+        //      self.rides_by_day.get(day_index)
+        //  }).flat_map(|ride_indx|{
+        //          ride_indx.iter().flat_map(|r|self.rides.get(*r))
+        //      }).map(|a|)
+        let offset_start = DayOffset::from_naivetime(&time_start.time());
+        let offset_end = DayOffset::from_naivetime(&time_end.time());
+        let date = &date_current.clone();
+
+        let rides_active_old = self
+            .rides
+            .iter()
+            .filter(|r| {
+                self.iff
+                    .validity()
+                    .is_valid_on_day(r.day_validity, date)
+                    .unwrap()
+            })
+            .count();
+
+        let rides_active_new = rides_today.len();
+        println!("old: {}, new: {}", rides_active_old, rides_active_new);
 
         self.rides()
             // .timetable()
@@ -478,7 +553,7 @@ impl DataRepo {
                     .unwrap()
             })
             .map(|r| Ride {
-                date: date.clone(),
+                date: *date,
                 recurrence: r,
             })
             // .cloned()
@@ -529,4 +604,11 @@ impl DataRepo {
     pub fn location_cache(&self) -> &LocationCache {
         &self.iff.locations
     }
+
+    // pub fn live_ride(
+    //     &self,
+    //     localtime: &NaiveDateTime,
+    //     reccurence: &RideRecurrence,
+    // ) -> Option<Ride> {
+    // }
 }

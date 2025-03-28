@@ -35,16 +35,15 @@ fn print_departures(data: &DataRepo, name_or_code: &str) -> Result<(), String> {
 
     println!("{}", station.name);
 
-    let now = time::timetable_now();
+    let now = time::timetable_now_naive();
     let future = now + Duration::hours(2); // TODO max ride time instead
-    let mut active_rides =
-        data.rides_active_in_timespan(&now.time(), &future.time(), &now.date_naive());
+    let mut active_rides = data.rides_active_in_timespan(&now, &future);
 
     active_rides.retain(|ride| ride.recurrence.boardable_at_code(&handle));
 
     // Timestamp before which are hide departures, since they're too far in the past to be relevant
     let cutoff_time_start = DayOffset::from_naivetime(&now.time());
-    let cutoff_time_end = cutoff_time_start.offset_by(2 * 60);
+    let cutoff_time_end = cutoff_time_start.offset_by_minutes(2 * 60);
 
     // Match ride with their stop at the given station code
     // And filter these to trains that depart between `cutoff_time_start` and `cutoff_time_end`
