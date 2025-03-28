@@ -6,7 +6,7 @@ use std::{
     iter,
 };
 
-use chrono::{NaiveDate, NaiveDateTime, NaiveTime};
+use chrono::{Days, NaiveDate, NaiveDateTime, NaiveTime};
 mod links;
 mod stations;
 use crate::ride_recurrance::RideRecurrence;
@@ -383,43 +383,15 @@ impl DataRepo {
     }
 
     pub fn rides_active_on_day(&self, date: &NaiveDate) -> Vec<Ride<'_>> {
-        // let index = self.iff.validity().day_index_from_date(date);
-        //
-        return self
-            .rides_by_day
+        self.rides_by_day
             .get(date)
-            .unwrap()
             .iter()
+            .flat_map(|a| a.iter())
             .map(|r| Ride {
                 recurrence: r,
                 date: *date,
             })
-            .collect();
-
-        self.rides
-            .iter()
-            .filter(|r| {
-                self.iff
-                    .validity()
-                    .is_valid_on_day(r.day_validity, date)
-                    .unwrap()
-            })
-            .map(|a| Ride {
-                date: *date,
-                recurrence: a,
-            })
             .collect()
-
-        // self.rides_by_day
-        //     .get(date)
-        //     .unwrap()
-        //     .iter()
-        //     .flat_map(|a| self.rides.get(*a))
-        //     .map(|recur| Ride {
-        //         date: *date,
-        //         recurrence: recur,
-        //     })
-        //     .collect()
     }
 
     pub fn create_valid_rides(
@@ -475,21 +447,13 @@ impl DataRepo {
         let time = DayOffset::from_naivetime(time);
 
         self.rides()
-            // .timetable()
-            // .rides
             .iter()
-            .filter(|r| r.start_time() < time && r.end_time() > time)
-            .filter(|r| {
-                self.iff
-                    .validity()
-                    .is_valid_on_day(r.day_validity, date)
-                    .unwrap()
-            })
+            .filter(|ride| ride.start_time() < time && ride.end_time() > time)
+            .filter(|ride| self.is_ride_active_on_day(date, ride))
             .map(|r| Ride {
-                date: date.clone(),
+                date: *date,
                 recurrence: r,
             })
-            // .cloned()
             .collect()
     }
 
@@ -498,8 +462,9 @@ impl DataRepo {
         time_start: &NaiveDateTime,
         time_end: &NaiveDateTime,
     ) -> Vec<Ride> {
-        // let timespan = time_start.time();
+        // let time_current = time.stc
         let date_current = time_start.date();
+        let date_yesterday = date_current.checked_sub_days(Days::new(1)).unwrap();
         // let date_yesterday = date_current
         //     .checked_sub_days(Days::new(1))
         //     .expect("could find yesterday");
@@ -516,48 +481,27 @@ impl DataRepo {
                 .is_active_in_timespan(time_start.time().into(), time_end.time().into())
         });
 
-        return rides_today;
+        let mut time_start_yesterday: DayOffset = time_start.time().into();
+        let mut time_end_yesterday: DayOffset = time_end.time().into();
+
+        time_start_yesterday = time_start_yesterday.offset_by_days(1).unwrap();
+        time_end_yesterday = time_end_yesterday.offset_by_days(1).unwrap();
+
+        let mut rides_yesterday = self.rides_active_on_day(&date_yesterday);
+        rides_yesterday.retain(|ride| {
+            ride.recurrence
+                .is_active_in_timespan(time_start_yesterday, time_end_yesterday)
+        });
+
+        // rides_yesterday.clear();
+
+        rides_today.into_iter().chain(rides_yesterday).collect()
 
         // [(date_current,0),(date_yesterday,60*24)].iter().map(|(date,offset)| self.iff.validity().day_index_from_date(date)).flat_map(|day_index| {
         //      self.rides_by_day.get(day_index)
         //  }).flat_map(|ride_indx|{
         //          ride_indx.iter().flat_map(|r|self.rides.get(*r))
         //      }).map(|a|)
-        let offset_start = DayOffset::from_naivetime(&time_start.time());
-        let offset_end = DayOffset::from_naivetime(&time_end.time());
-        let date = &date_current.clone();
-
-        let rides_active_old = self
-            .rides
-            .iter()
-            .filter(|r| {
-                self.iff
-                    .validity()
-                    .is_valid_on_day(r.day_validity, date)
-                    .unwrap()
-            })
-            .count();
-
-        let rides_active_new = rides_today.len();
-        println!("old: {}, new: {}", rides_active_old, rides_active_new);
-
-        self.rides()
-            // .timetable()
-            // .rides
-            .iter()
-            .filter(|r| r.start_time() <= offset_end && r.end_time() > offset_start)
-            .filter(|r| {
-                self.iff
-                    .validity()
-                    .is_valid_on_day(r.day_validity, date)
-                    .unwrap()
-            })
-            .map(|r| Ride {
-                date: *date,
-                recurrence: r,
-            })
-            // .cloned()
-            .collect()
     }
 
     pub fn rides_active_on_date(&self, date: &NaiveDate) -> Vec<Ride> {
