@@ -261,7 +261,7 @@ impl DataRepo {
         println!("Day count: {}", duration.num_days());
         println!("Version: {}", iff.header().version);
 
-        let rides = Self::create_valid_rides(&iff.rides(), &links, &stations, &iff.locations);
+        let rides = Self::create_valid_rides(iff.rides(), &links, &stations, &iff.locations);
         let version = iff.header().version;
         let mut rides_by_day = HashMap::new();
 

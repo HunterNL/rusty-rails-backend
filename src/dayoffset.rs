@@ -41,7 +41,7 @@ pub struct DayOffsetTimetableDisplay<'a> {
     inner: &'a DayOffset,
 }
 
-impl<'a> Display for DayOffsetTimetableDisplay<'a> {
+impl Display for DayOffsetTimetableDisplay<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         // Strip times that exceed 24hours
         let local_time = self.inner.offset % DAY;
@@ -56,7 +56,7 @@ pub struct DayOffsetTimetableDisplayNoWrap<'a> {
     inner: &'a DayOffset,
 }
 
-impl<'a> Display for DayOffsetTimetableDisplayNoWrap<'a> {
+impl Display for DayOffsetTimetableDisplayNoWrap<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let hours = self.inner.offset / HOUR;
         let minutes = (self.inner.offset % HOUR) / MINUTE;

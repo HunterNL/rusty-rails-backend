@@ -27,7 +27,7 @@ struct RecordParser<'a> {
     locations: &'a mut LocationCache,
 }
 
-impl<'a, 'b> Parser<Stream<'a>, Record, winnow::error::ContextError> for RecordParser<'b> {
+impl<'a> Parser<Stream<'a>, Record, winnow::error::ContextError> for RecordParser<'_> {
     fn parse_next(&mut self, input: &mut &'a winnow::BStr) -> PResult<Record> {
         preceded(
             '#',
