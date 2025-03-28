@@ -1,7 +1,7 @@
 use chrono::NaiveDate;
-use serde::{ser::SerializeStruct, Serialize};
+use serde::Serialize;
 
-use crate::{api::ApiObject, ride_recurrance::RideRecurrence};
+use crate::ride_recurrance::RideRecurrence;
 
 #[derive(Serialize, Debug, Clone)]
 pub struct Ride<'a> {

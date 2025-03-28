@@ -6,7 +6,7 @@ use std::{
     iter,
 };
 
-use chrono::{Days, NaiveDate, NaiveDateTime, NaiveTime};
+use chrono::{NaiveDate, NaiveDateTime, NaiveTime};
 mod links;
 mod stations;
 use crate::ride_recurrance::RideRecurrence;
@@ -61,7 +61,7 @@ struct Daymeta {
     ride_count: usize,
 }
 
-impl<'a, 'b> Display for MissingLinkReportDisplay<'a, 'b> {
+impl Display for MissingLinkReportDisplay<'_, '_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self.inner {
             MissingLinkReport::NoRoute(from, to) => {
@@ -570,7 +570,7 @@ impl DataRepo {
                     .unwrap()
             })
             .map(|r| Ride {
-                date: date.clone(),
+                date: *date,
                 recurrence: r,
             })
             .collect()

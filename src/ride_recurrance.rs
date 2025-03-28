@@ -1,6 +1,5 @@
 use std::fmt::{Display, Write};
 
-use chrono::{NaiveDateTime, NaiveTime};
 use serde::Serialize;
 
 use crate::{
@@ -9,7 +8,6 @@ use crate::{
         timetable::{generate_legs, timetable_end, timetable_start, TimetableEntry},
         Leg, LocationCache, LocationCodeHandle,
     },
-    ride::Ride,
 };
 
 #[derive(Debug, Serialize, Clone, PartialEq, Eq)]

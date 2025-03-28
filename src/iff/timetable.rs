@@ -76,12 +76,12 @@ impl TimetableEntry {
     }
 }
 
-pub struct TimetableEntryContext<'e, 'c> {
-    pub entry: &'e TimetableEntry,
-    pub context: &'c LocationCache,
+pub struct TimetableEntryContext<'a> {
+    pub entry: &'a TimetableEntry,
+    pub context: &'a LocationCache,
 }
 
-impl<'e, 'c> Serialize for TimetableEntryContext<'e, 'c> {
+impl Serialize for TimetableEntryContext<'_> {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: serde::Serializer,
@@ -102,7 +102,7 @@ pub struct TimetableEntryRaw<'a> {
     pub stop_kind: StopKind,
 }
 
-impl<'a> TimetableEntryRaw<'a> {
+impl TimetableEntryRaw<'_> {
     pub fn to_proper(&self, cache: &mut LocationCache) -> TimetableEntry {
         TimetableEntry {
             code: cache.get_handle(self.code),

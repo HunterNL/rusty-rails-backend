@@ -32,6 +32,7 @@ pub struct AppConfig {
     pub bind_addr: String,
 }
 
+#[allow(dead_code)]
 fn wait_user_input() {
     println!("Waiting for user input");
     let mut dummy = String::new();

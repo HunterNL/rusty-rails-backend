@@ -64,7 +64,7 @@ fn stopkind_to_num(stop_kind: &StopKind) -> u8 {
     }
 }
 
-impl<'a, 'b> Serialize for ApiObject<'a, Leg> {
+impl Serialize for ApiObject<'_, Leg> {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: serde::Serializer,
@@ -93,7 +93,7 @@ impl<'a, 'b> Serialize for ApiObject<'a, Leg> {
     }
 }
 
-impl<'a> Serialize for ApiObject<'a, Record> {
+impl Serialize for ApiObject<'_, Record> {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: serde::Serializer,
@@ -118,7 +118,7 @@ impl<'a> Serialize for ApiObject<'a, Record> {
     }
 }
 
-impl<'a> Serialize for ApiObject<'a, RideRecurrence> {
+impl Serialize for ApiObject<'_, RideRecurrence> {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: serde::Serializer,

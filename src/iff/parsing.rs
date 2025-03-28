@@ -35,7 +35,7 @@ pub fn parse_delivery_file(
 use super::timetable::{
     generate_legs, timetable_end, timetable_normalize_ends, timetable_start, timetable_stop_index,
 };
-use super::{Header, Leg, LegKind, Record, StopKind, TimetableEntry};
+use super::{Header, Leg, Record};
 
 /// Length of dates as they appear in the iff file
 const DATE_FORMAT_LEN: usize = "DDMMYYYY".len();

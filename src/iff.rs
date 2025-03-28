@@ -1,12 +1,12 @@
 use std::{
     collections::HashMap,
-    fmt::{Display, Write},
+    fmt::Display,
     fs::File,
     io::{self, Cursor, Read},
     str::FromStr,
 };
 
-use chrono::{NaiveDate, NaiveTime};
+use chrono::NaiveDate;
 use parsing::{
     parse_company_file, parse_delivery_file, parse_footnote_file, parse_timetable_file, CompanyFile,
 };

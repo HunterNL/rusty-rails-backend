@@ -8,9 +8,8 @@ use winnow::{
 };
 
 use crate::iff::{
-    timetable::{TimetableEntry, TimetableEntryRaw},
-    DayValidityFootnote, Footnote, Header, Leg, LegKind, LocationCache, Platform, PlatformInfo,
-    Record, RideId, RideValidity, StopKind, TimeTable,
+    timetable::TimetableEntryRaw, DayValidityFootnote, Footnote, Header, LocationCache, Platform,
+    PlatformInfo, Record, RideId, RideValidity, StopKind, TimeTable,
 };
 
 use super::{
