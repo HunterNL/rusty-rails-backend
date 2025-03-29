@@ -476,21 +476,15 @@ impl DataRepo {
         // let time_current = time.stc
         let date_current = time_start.date();
         let date_yesterday = date_current.checked_sub_days(Days::new(1)).unwrap();
-        // let date_yesterday = date_current
-        //     .checked_sub_days(Days::new(1))
-        //     .expect("could find yesterday");
 
-        // let rides_yesterday = iter::once(date_yesterday).map(|date| self.iff.validity().day_index_from_date(&date)).flat_map(|index| {
-        // self
-        // })
-        //
-        //
-        println!("{}", date_current);
+        let start: DayOffset = time_start.time().into();
+        let mut end: DayOffset = time_end.time().into();
+
+        if end < start {
+            end = end.offset_by_days(1).unwrap()
+        }
         let mut rides_today = self.rides_active_on_day(&date_current);
-        rides_today.retain(|a| {
-            a.recurrence
-                .is_active_in_timespan(time_start.time().into(), time_end.time().into())
-        });
+        rides_today.retain(|a| a.recurrence.is_active_in_timespan(start, end));
 
         let mut time_start_yesterday: DayOffset = time_start.time().into();
         let mut time_end_yesterday: DayOffset = time_end.time().into();
