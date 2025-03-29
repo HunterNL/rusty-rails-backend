@@ -289,6 +289,7 @@ async fn start_server(
     data: DataRepo,
     ns_api: NsApi,
 ) -> Result<(), anyhow::Error> {
+    println!("Starting server");
     let (shutdown_sender, mut shutdown_receiver) = mpsc::channel(1);
 
     ctrlc::set_handler(move || {
