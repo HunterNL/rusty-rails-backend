@@ -265,6 +265,8 @@ impl DataRepo {
         let version = iff.header().version;
         let mut rides_by_day = HashMap::new();
 
+        println!("DR 1");
+
         // BAD
         iff.timetable()
             .header
@@ -290,6 +292,8 @@ impl DataRepo {
                 //         .unwrap()
                 // })
             });
+
+        println!("DR 2");
 
         // c                rides.iter().enumerate().filter_map(|(index,ride)|{
 
@@ -324,6 +328,8 @@ impl DataRepo {
             })
             .collect();
 
+        println!("DR 3");
+
         let mut temp: Vec<(&NaiveDate, &Daymeta)> = daily_stats.iter().collect();
         temp.sort_unstable_by_key(|a| a.0);
         temp.iter().for_each(|(date, stats)| {
@@ -335,6 +341,8 @@ impl DataRepo {
                 stats.ride_count,
             )
         });
+
+        println!("Finished creating datarepo");
 
         Self {
             day_stats: daily_stats,
