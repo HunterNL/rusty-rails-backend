@@ -28,7 +28,7 @@ pub struct DataRepo {
     stations: Vec<stations::Station>,
     iff: Iff,
     rides: Vec<RideRecurrence>,
-    rides_by_day: HashMap<NaiveDate, Vec<RideRecurrence>>,
+    rides_by_day: HashMap<NaiveDate, Vec<usize>>,
     day_stats: HashMap<NaiveDate, Daymeta>,
     version: u64,
 }
@@ -277,12 +277,12 @@ impl DataRepo {
                 let rides_on_day: Vec<_> = rides
                     .iter()
                     .enumerate()
-                    .filter(|(_, ride)| {
+                    .filter(|(index, ride)| {
                         iff.validity()
                             .is_valid_on_day(ride.day_validity, &date)
                             .unwrap()
                     })
-                    .map(|a| a.1.clone())
+                    .map(|a| a.0)
                     .collect();
                 rides_by_day.insert(date, rides_on_day);
 
@@ -304,6 +304,7 @@ impl DataRepo {
             .map(|(day, indexes)| {
                 let min = indexes
                     .iter()
+                    .map(|a| rides.get(*a).unwrap())
                     // .map(|i| rides.get(*i).unwrap())
                     .min_by_key(|r| r.departure_time())
                     .map(|r| r.departure_time())
@@ -311,6 +312,7 @@ impl DataRepo {
 
                 let max = indexes
                     .iter()
+                    .map(|a| rides.get(*a).unwrap())
                     // .map(|i| rides.get(*i).expect("recurrence to refer to valid ride id"))
                     .max_by_key(|r| r.arrival_time())
                     .map(|r| r.departure_time())
@@ -395,6 +397,7 @@ impl DataRepo {
             .get(date)
             .iter()
             .flat_map(|a| a.iter())
+            .map(|a| self.rides.get(*a).unwrap())
             .map(|r| Ride {
                 recurrence: r,
                 date: *date,
