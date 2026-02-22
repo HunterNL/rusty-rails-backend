@@ -3,6 +3,8 @@
 	skip_install_trust
 	local_certs
 	admin off
+	http_port 8080
+	https_port 4343
 }
 
 api.dev.localhost {
